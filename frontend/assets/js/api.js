@@ -135,7 +135,19 @@
   function getCurrentUser() {
     var raw = storeGet(STORE.user);
     if (!raw) { return null; }
-    try { return JSON.parse(raw); } catch (e) { return null; }
+    try {
+      var u = JSON.parse(raw);
+      // 兼容历史缓存：早期版本可能把 /auth/me 的 {user, permissions} 整体存了进来，
+      // 这里做一次解包，避免老数据导致角色判定为空。
+      if (u && u.user && !u.roleCode && !u.role) {
+        var inner = u.user;
+        if (Object.prototype.toString.call(u.permissions) === '[object Array]') {
+          inner.permissions = u.permissions;
+        }
+        return inner;
+      }
+      return u;
+    } catch (e) { return null; }
   }
 
   /** 写入登录态（登录成功 / 刷新 /api/auth/me 后调用） */
@@ -364,10 +376,21 @@
         .catch(function () { return null; })
         .then(function () { clearAuth(); });
     },
-    /** 拉取当前用户信息并刷新本地缓存（刷新页面后同步权限变化） */
+    /**
+     * 拉取当前用户信息并刷新本地缓存（刷新页面后同步权限变化）。
+     *
+     * 后端 /auth/me 返回 {user:{...}, permissions:[...]}，而 /auth/login 返回的 data
+     * 里 user 与 permissions 是并列两个字段。这里必须把 user 解包出来，
+     * 并把 permissions 合并进用户对象后再落盘 —— 否则本地缓存里存的是外层包装对象，
+     * roleCode()/permissions() 都取不到值，角色会被判定为"未就绪"，导致左侧菜单整体不渲染。
+     */
     fetchMe: function () {
-      return request('GET', '/auth/me').then(function (user) {
-        setAuth(null, user);
+      return request('GET', '/auth/me').then(function (data) {
+        var user = data && data.user ? data.user : data;
+        if (user && data && Object.prototype.toString.call(data.permissions) === '[object Array]') {
+          user.permissions = data.permissions;
+        }
+        setAuth(null, user || null);
         return user;
       });
     },

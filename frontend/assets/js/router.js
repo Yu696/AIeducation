@@ -43,7 +43,9 @@
     { path: '/resources', key: 'resources', title: '教学资源管理', icon: '⌘', group: '课程与教学',
       roles: ['ADMIN', 'DIRECTOR', 'TEACHER', 'SUPERVISOR', 'COURSE_ADMIN'], permission: 'resource:read' },
     { path: '/prep', key: 'prep', title: '备课查看', icon: '✎', group: '课程与教学',
-      roles: ['TEACHER', 'DIRECTOR', 'ADMIN'], permission: 'resource:prep' },
+      // 备课查看是"我的课程"视图，需要绑定教师档案；系统管理员既无 resource:prep 权限也无教师身份，
+      // 因此不纳入管理员菜单，避免"菜单可见但接口 403"的错配
+      roles: ['TEACHER', 'DIRECTOR'], permission: 'resource:prep' },
 
     // —— 评价与督导 ——
     { path: '/evaluations', key: 'evaluations', title: '教学评价管理', icon: '★', group: '评价与督导',
