@@ -179,6 +179,22 @@ python docs\smoke_test.py
 > BCrypt 哈希已用 `bcrypt.checkpw` 验证对应明文 `123456`。
 > 具体院系代码与教师绑定关系以 `database/data.sql` 为准。
 
+**`director` 账号的演示注意事项**：该账号绑定 `MATH` 教研室（`cross_department=false`），
+因此主任工作台只统计 MATH 院系数据 —— 这是 US-01「数据范围收窄」的正确表现，但 MATH 院系样例数据量较小，
+演示时数字偏少属预期。
+
+若要让「教研室主任工作台」展示更丰富的数据，可用管理员改一行配置或一个账号：
+
+```sql
+-- 方式一：允许主任跨院查询（同时演示 cross_department 开关的作用）
+UPDATE sys_config SET config_value = 'true' WHERE config_key = 'cross_department';
+-- 方式二：把主任改挂到数据较多的院系（CS）
+UPDATE sys_user SET department_code = 'CS' WHERE username = 'director';
+-- 恢复默认
+UPDATE sys_config SET config_value = 'false' WHERE config_key = 'cross_department';
+UPDATE sys_user SET department_code = 'MATH' WHERE username = 'director';
+```
+
 ## 七、分支策略
 
 ```
