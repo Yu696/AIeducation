@@ -1,0 +1,58 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: aijiaoxue-backend
+  # ---------------- 数据源：MySQL 8.0（US-05 数据建模） ----------------
+  # characterEncoding 需为 Java 字符集名（UTF-8）；库/表层已固定 utf8mb4，不会丢失四字节字符
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/aijiaoxue?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+  # 数据库初始化：由 database/ 下的权威脚本负责，应用启动不再自动执行。
+  # 原因：database/schema.sql 含 DROP DATABASE 语句，自动执行会在每次启动时清空数据；
+  # 初始化步骤见 database/README.md（mysql -uroot -p123456 < schema.sql 等）。
+  sql:
+    init:
+      mode: never
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+# ---------------- MyBatis-Plus ----------------
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.aijiaoxue.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+# ---------------- 业务配置 ----------------
+aijiaoxue:
+  # 认证令牌有效期（分钟）
+  token-expire-minutes: 720
+  # 教学资源文件落盘目录（相对 backend 工作目录）
+  upload-dir: ./upload-files
+  # 演示账号默认密码，仅用于初始化提示，实际口令为 BCrypt 哈希
+  demo-password: "123456"
+
+logging:
+  level:
+    root: info
+    com.aijiaoxue: debug

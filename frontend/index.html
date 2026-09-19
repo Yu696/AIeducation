@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="爱教学 · 教学质量全链路数字化管理平台 —— Sprint 1「查课程」">
+  <title>爱教学 · 教学质量全链路数字化管理平台</title>
+  <!-- 全部样式与脚本均为本地文件，零外部依赖（无 CDN、无 npm、无构建工具） -->
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<!-- =====================================================================
+     协议提示条：以 file:// 直接双击打开时，浏览器会拦截跨源 API 请求
+     ===================================================================== -->
+<div class="protocol-warn hidden" id="protocolWarn">
+  当前以 <strong>file://</strong> 方式打开页面，浏览器会拦截跨源接口请求。
+  请改用后端地址访问（如 <strong>http://localhost:8080</strong>），
+  或用 <strong>python -m http.server 5500</strong> 启动本地静态服务后访问 http://localhost:5500 ；
+  也可点击右上角「API 地址」手工指定后端。
+</div>
+
+<!-- =====================================================================
+     一、登录页
+     ===================================================================== -->
+<div class="login-page" id="loginView">
+  <div class="login-wrap">
+
+    <!-- 左侧品牌区 -->
+    <div class="login-brand">
+      <div class="login-logo">
+        <span class="login-logo-mark">教</span>
+        <span class="login-logo-text">爱教学</span>
+      </div>
+      <div class="login-slogan">教学质量全链路数字化管理平台<br>让教学质量持续可测</div>
+      <div class="login-stage">当前阶段：进阶 1「查课程」· Sprint 1 教学模拟迭代</div>
+      <ul class="login-points">
+        <li>课程、开课、教师数据统一建模与全量查询</li>
+        <li>教研室主任 / 教师 / 教学督导 / 系统管理员四类工作台</li>
+        <li>教学资源挂接与备课查看、评教结果展示</li>
+        <li>督导覆盖率统计与听评课安排</li>
+      </ul>
+    </div>
+
+    <!-- 右侧登录表单 -->
+    <div class="login-card">
+      <h1 class="login-title">账号登录</h1>
+      <p class="login-sub">请使用团队分配的账号登录系统</p>
+
+      <div class="login-error hidden" id="loginError">
+        <span>!</span><span id="loginErrorText"></span>
+      </div>
+
+      <form class="login-form" id="loginForm" autocomplete="off">
+        <div class="form-item">
+          <label class="form-label" for="loginUsername">用户名</label>
+          <input class="input" id="loginUsername" name="username" type="text"
+                 placeholder="请输入用户名" autocomplete="username" required>
+        </div>
+        <div class="form-item">
+          <label class="form-label" for="loginPassword">密码</label>
+          <input class="input" id="loginPassword" name="password" type="password"
+                 placeholder="请输入密码" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" id="loginSubmit" type="submit">登录</button>
+      </form>
+
+      <!-- 演示账号：点击自动填充 -->
+      <div class="demo-accounts">
+        <div class="demo-title">演示账号（密码统一 123456，点击自动填充）</div>
+        <div class="demo-grid" id="demoAccounts"></div>
+        <div class="demo-hint">提示：登录需要后端服务可用，默认地址 http://localhost:8080</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- =====================================================================
+     二、应用外壳（左侧深色侧边栏 + 顶部用户信息栏 + 内容区）
+     ===================================================================== -->
+<div class="app hidden" id="appView">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span class="sidebar-brand-mark">教</span>
+      <span>
+        <span class="sidebar-brand-text">爱教学</span><br>
+        <span class="sidebar-brand-sub">Sprint 1 · 查课程</span>
+      </span>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <!-- 由 router.js 按角色动态渲染 -->
+    </nav>
+    <div class="sidebar-foot">
+      16组 · 软件项目管理实验二<br>代号：蜂鸟
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="topbarTitle">工作台</div>
+
+      <div class="topbar-right">
+        <span class="topbar-env" id="topbarEnv"></span>
+
+        <button class="btn btn-sm" id="apiBaseBtn" type="button" title="配置后端接口地址">API 地址</button>
+
+        <div class="topbar-user">
+          <span class="avatar" id="topbarAvatar">—</span>
+          <span class="user-meta">
+            <span class="user-name" id="topbarUserName">未登录</span><br>
+            <span class="user-role" id="topbarUserRole">—</span>
+          </span>
+        </div>
+
+        <button class="btn btn-sm" id="logoutBtn" type="button">退出登录</button>
+      </div>
+    </header>
+
+    <main class="content" id="content" tabindex="-1"></main>
+  </div>
+</div>
+
+<!-- Toast 容器 -->
+<div class="toast-host" id="toastHost"></div>
+
+<!-- =====================================================================
+     三、脚本加载（顺序：命名空间 → 基础层 → 页面模块 → 启动）
+     全部为经典脚本（非 ES module），因此 file:// 双击打开也不会被 CORS 拦截
+     ===================================================================== -->
+<script src="assets/js/api.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/router.js"></script>
+
+<script src="assets/js/pages/dashboard.js"></script>
+<script src="assets/js/pages/courses.js"></script>
+<script src="assets/js/pages/offerings.js"></script>
+<script src="assets/js/pages/teachers.js"></script>
+<script src="assets/js/pages/resources.js"></script>
+<script src="assets/js/pages/prep.js"></script>
+<script src="assets/js/pages/evaluations.js"></script>
+<script src="assets/js/pages/supervision.js"></script>
+<script src="assets/js/pages/coverage.js"></script>
+<script src="assets/js/pages/admin.js"></script>
+
+<script>
+/* ============================================================================
+ * 应用引导脚本（boot）
+ *
+ * 职责：
+ *   1. 登录页 / 应用外壳的显隐切换（供 router.js 调用）
+ *   2. 登录表单提交、演示账号自动填充、退出登录
+ *   3. 刷新页面后用 /api/auth/me 校验 token 有效性
+ *   4. file:// 协议提示、API 地址配置弹窗
+ * ========================================================================== */
+(function (window, document) {
+  'use strict';
+
+  var AJ = window.AJ;
+  var Api = AJ.Api;
+  var UI = AJ.UI;
+  var util = AJ.util;
+
+  /** 六个演示账号（契约第 1 节） */
+  var DEMO_ACCOUNTS = [
+    { username: 'admin', role: '系统管理员' },
+    { username: 'director', role: '教研室主任' },
+    { username: 'teacher1', role: '教师（本人课程）' },
+    { username: 'teacher2', role: '教师（本人课程）' },
+    { username: 'supervisor', role: '教学督导' },
+    { username: 'courseadmin', role: '课程管理员' }
+  ];
+
+  /* ---------------------------------------------------------------
+   * 外壳显隐
+   * ------------------------------------------------------------- */
+  window.AJShowLogin = function () {
+    document.getElementById('appView').classList.add('hidden');
+    document.getElementById('loginView').classList.remove('hidden');
+    document.title = '登录 · 爱教学';
+    var u = document.getElementById('loginUsername');
+    if (u) { window.setTimeout(function () { u.focus(); }, 50); }
+  };
+
+  window.AJShowApp = function () {
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('appView').classList.remove('hidden');
+    AJ.Router.renderTopbarUser();
+    AJ.Router.renderMenu();
+  };
+
+  /* ---------------------------------------------------------------
+   * 登录错误提示
+   * ------------------------------------------------------------- */
+  function showLoginError(msg) {
+    var box = document.getElementById('loginError');
+    var text = document.getElementById('loginErrorText');
+    text.textContent = msg || '登录失败';
+    box.classList.remove('hidden');
+  }
+
+  function hideLoginError() {
+    document.getElementById('loginError').classList.add('hidden');
+  }
+
+  /* ---------------------------------------------------------------
+   * 演示账号按钮
+   * ------------------------------------------------------------- */
+  function renderDemoAccounts() {
+    var host = document.getElementById('demoAccounts');
+    if (!host) { return; }
+    host.innerHTML = '';
+    DEMO_ACCOUNTS.forEach(function (a) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'demo-btn';
+      btn.innerHTML = '<span class="demo-user">' + util.escape(a.username) + '</span>' +
+        '<span class="demo-role">' + util.escape(a.role) + '</span>';
+      btn.addEventListener('click', function () {
+        document.getElementById('loginUsername').value = a.username;
+        document.getElementById('loginPassword').value = '123456';
+        hideLoginError();
+        document.getElementById('loginPassword').focus();
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  /* ---------------------------------------------------------------
+   * 登录提交
+   * ------------------------------------------------------------- */
+  function bindLogin() {
+    var form = document.getElementById('loginForm');
+    var submit = document.getElementById('loginSubmit');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      hideLoginError();
+
+      var username = String(document.getElementById('loginUsername').value || '').trim();
+      var password = String(document.getElementById('loginPassword').value || '');
+
+      if (!username) { showLoginError('请输入用户名'); return; }
+      if (!password) { showLoginError('请输入密码'); return; }
+
+      submit.disabled = true;
+      submit.textContent = '登录中…';
+
+      Api.login(username, password)
+        .then(function () {
+          // 登录成功：补齐用户信息（含权限码），再进入工作台
+          return Api.fetchMe().catch(function () {
+            // /auth/me 不可用时不阻塞登录流程
+            return null;
+          });
+        })
+        .then(function () {
+          submit.disabled = false;
+          submit.textContent = '登录';
+          document.getElementById('loginPassword').value = '';
+          UI.toast('登录成功，欢迎回来', 'success');
+          AJ.Router.refreshShell();
+          AJ.Router.go('/dashboard', { replace: true });
+        })
+        .catch(function (err) {
+          submit.disabled = false;
+          submit.textContent = '登录';
+          var msg = (err && err.message) || '登录失败';
+          if (err && err.code === 400) { msg = '用户名或密码错误'; }
+          showLoginError(msg);
+        });
+    });
+  }
+
+  /* ---------------------------------------------------------------
+   * 退出登录
+   * ------------------------------------------------------------- */
+  function bindLogout() {
+    var btn = document.getElementById('logoutBtn');
+    btn.addEventListener('click', function () {
+      UI.confirm({
+        title: '退出登录',
+        message: '确定要退出当前账号吗？',
+        confirmText: '退出',
+        danger: false,
+        onConfirm: function () {
+          return Api.logout().then(function () {
+            UI.toast('已退出登录', 'info');
+            AJ.Router.go('/login', { replace: true });
+          });
+        }
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------
+   * API 地址配置
+   * ------------------------------------------------------------- */
+  function bindApiBase() {
+    var btn = document.getElementById('apiBaseBtn');
+    btn.addEventListener('click', function () {
+      var current = Api.getBase();
+      var isDefault = !window.localStorage || !window.localStorage.getItem('aijiaoxue.apiBase');
+
+      UI.formModal({
+        title: '后端接口地址设置',
+        width: 'narrow',
+        fieldsHtml:
+          '<div class="form-item"><label class="form-label">API 基地址</label>' +
+          '<input class="input" name="base" value="' + util.escape(current) + '">' +
+          '<div class="api-hint">' +
+          '默认同源 <code>/api</code>（由后端静态托管前端时使用）。<br>' +
+          '前后端分离调试时可填 <code>http://localhost:8080/api</code>。<br>' +
+          '留空则恢复默认值。修改后页面会自动刷新。' +
+          '</div></div>' +
+          '<div class="note-box"><span class="note-icon">!</span><div>' +
+          '当前生效值：<code>' + util.escape(current) + '</code>' +
+          (isDefault ? '（默认值）' : '（已手工设置）') +
+          '</div></div>',
+        submitText: '保存并刷新',
+        onSubmit: function (values) {
+          Api.setBase(values.base);
+          UI.toast('接口地址已更新，正在刷新…', 'success');
+          window.setTimeout(function () { window.location.reload(); }, 600);
+          return false;
+        }
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------
+   * 启动
+   * ------------------------------------------------------------- */
+  function boot() {
+    // 1) file:// 提示
+    if (window.location.protocol === 'file:') {
+      document.getElementById('protocolWarn').classList.remove('hidden');
+    }
+
+    renderDemoAccounts();
+    bindLogin();
+    bindLogout();
+    bindApiBase();
+
+    // 2) 启动路由
+    AJ.Router.start();
+
+    // 3) 已登录时用 /auth/me 校验 token 是否仍然有效，并刷新权限码
+    if (Api.isLoggedIn()) {
+      Api.fetchMe().then(function () {
+        AJ.Router.refreshShell();
+        AJ.Router.resolve();
+      }, function (err) {
+        // 401 时 api.js 已负责跳转登录页；其它错误（如后端未启动）不强制登出
+        if (err && err.code === 401) { return; }
+        AJ.Router.refreshShell();
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+
+})(window, document);
+</script>
+
+</body>
+</html>
