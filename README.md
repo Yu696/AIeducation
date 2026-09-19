@@ -79,7 +79,6 @@ aijiaoxue/
 ├── database/                   数据库脚本与数据字典
 │   ├── schema.sql              建库建表（16 张表，每字段带 COMMENT）
 │   ├── data.sql                样例数据（US-05 数据导入）
-│   ├── reset_fixture.sql       幂等重置脚本（清理测试期残留，恢复基线）
 │   ├── 数据字典.md              逐表字段明细 + 关键统计口径
 │   └── README.md               初始化 / 校验 / 重置说明
 └── docs/                       契约与过程文档
@@ -132,7 +131,30 @@ mvn spring-boot:run
 数据库连接配置见 `backend/src/main/resources/application.yml`（默认 `root` / `123456` / `aijiaoxue`）。
 
 > **数据库初始化说明**：应用启动**不会**自动执行建表脚本（避免每次启动清空数据）。
-> 首次运行前请先完成「步骤 1」；需要恢复基线数据时执行 `database/reset_fixture.sql`。
+> 首次运行前请先完成「步骤 1」。
+
+#### 数据看起来"变少了"怎么办
+
+`database/data.sql` **不是幂等脚本**（只含 INSERT），重复执行会因主键冲突中途失败，
+留下"只导入了一部分"的半成品数据。若发现课程/教师数量明显偏少，
+按下面步骤**完整重载**（`schema.sql` 会先重建库，因此必须先跑它）：
+
+```powershell
+cd D:\java\idea\idea_java_projects\aijiaoxue\database
+mysql -uroot -p123456 --default-character-set=utf8mb4 < schema.sql   # 重建库与 16 张表
+mysql -uroot -p123456 --default-character-set=utf8mb4 < data.sql    # 导入权威样例数据
+```
+
+重载后的预期行数（可复制到 mysql 中自检）：
+
+| 表 | 行数 | 表 | 行数 |
+| --- | --- | --- | --- |
+| `teacher` | 12 | `course` | 24 |
+| `offering` | 30（正常开课 24） | `student_count` | 40 |
+| `teaching_resource` | 25 | `evaluation` | 60 |
+| `supervision` | 20 | `sys_user` | 6 |
+
+督导覆盖率应为 **16 / 24 = 66.7%**。完整校验 SQL 见 `database/README.md`。
 
 ### 步骤 3：打开前端
 
@@ -179,20 +201,27 @@ python docs\smoke_test.py
 > BCrypt 哈希已用 `bcrypt.checkpw` 验证对应明文 `123456`。
 > 具体院系代码与教师绑定关系以 `database/data.sql` 为准。
 
-**`director` 账号的演示注意事项**：该账号绑定 `MATH` 教研室（`cross_department=false`），
-因此主任工作台只统计 MATH 院系数据 —— 这是 US-01「数据范围收窄」的正确表现，但 MATH 院系样例数据量较小，
-演示时数字偏少属预期。
+**各账号可见数据量**（基于权威样例数据，可作为验收自检基准）：
 
-若要让「教研室主任工作台」展示更丰富的数据，可用管理员改一行配置或一个账号：
+| 账号 | 课程 | 开课 | 教师 | 资源 | 评价 | 听评课 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `admin` | 24 | 30 | 12 | 25 | 60 | 20 |
+| `director`（MATH 教研室） | 4 | 6 | 2 | 6 | 14 | 无权访问 |
+| `teacher1`（张伟，CS） | 2 | 4 | 无权访问 | 4 | 4 | 无权访问 |
+| `teacher2`（李娜，CS） | 2 | 3 | 无权访问 | 3 | 6 | 无权访问 |
+| `supervisor` | 24 | 30 | 12 | 无权访问 | 60 | 20 |
+| `courseadmin` | 24 | 30 | 12 | 无权访问 | 无权访问 | 无权访问 |
+
+> 出现「无权访问」是 US-01 越权拦截的正确表现（该角色无对应权限码），不是故障。
+> 各账号看到的数据条数不同，正是 ALL / DEPARTMENT / SELF 三重数据范围生效的证明。
+
+**`director` 账号的演示说明**：该账号绑定 `MATH` 教研室（`cross_department=false`），
+因此主任工作台只统计 MATH 院系数据 —— 这是数据范围收窄的正确表现，演示时数字比 admin 少属预期。
+若想展示全校规模的主任视图，可临时开启跨院查询：
 
 ```sql
--- 方式一：允许主任跨院查询（同时演示 cross_department 开关的作用）
-UPDATE sys_config SET config_value = 'true' WHERE config_key = 'cross_department';
--- 方式二：把主任改挂到数据较多的院系（CS）
-UPDATE sys_user SET department_code = 'CS' WHERE username = 'director';
--- 恢复默认
-UPDATE sys_config SET config_value = 'false' WHERE config_key = 'cross_department';
-UPDATE sys_user SET department_code = 'MATH' WHERE username = 'director';
+UPDATE sys_config SET config_value = 'true'  WHERE config_key = 'cross_department';  -- 允许跨院
+UPDATE sys_config SET config_value = 'false' WHERE config_key = 'cross_department';  -- 恢复默认
 ```
 
 ## 七、分支策略
