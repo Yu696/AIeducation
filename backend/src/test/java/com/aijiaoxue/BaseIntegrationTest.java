@@ -74,6 +74,9 @@ public abstract class BaseIntegrationTest {
         jdbcTemplate.update("UPDATE supervision SET status = '已完成', finish_date = '2025-04-10', score = 88.0 WHERE id = 5");
         jdbcTemplate.update("UPDATE course SET course_name = '人工智能导论', credit = 2.0, "
                 + "total_hours = 32, status = '草稿' WHERE id = 7");
+        // US-07：挂接状态可能被非事务用例改写，恢复基线（1-5 已挂接，6 已软解绑）
+        jdbcTemplate.update("UPDATE course_resource SET associated = 1 WHERE id IN (1,2,3,4,5)");
+        jdbcTemplate.update("UPDATE course_resource SET associated = 0 WHERE id = 6");
         // 清空角色权限后，把角色权限缓存一并失效，避免缓存与库不一致
         permissionCacheEvict();
     }

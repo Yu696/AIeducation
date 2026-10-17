@@ -24,6 +24,7 @@ import com.aijiaoxue.util.CsvUtils;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -90,25 +91,25 @@ public class CourseService {
 
     /** 课程详情：含简介详情、负责人、教学班数、资源数、授课教师、已挂接资源 */
     public Map<String, Object> detail(Long id, CurrentUser user) {
+        requireCourseAccess(id, user, "教师只能查看本人所授课程的详情");
         CourseDetailView detail = courseMapper.selectCourseDetail(id);
-        if (detail == null) {
-            throw BusinessException.notFound("课程不存在");
-        }
-        // 教师数据范围校验：只允许查看本人负责或讲授的课程
-        Long selfTeacherId = dataScopeService.teacherScope(user);
-        if (selfTeacherId != null) {
-            List<CourseDetailView> mine = courseMapper.selectCoursesOfTeacher(selfTeacherId);
-            boolean owned = mine.stream().anyMatch(c -> c.getId().equals(id));
-            if (!owned) {
-                throw BusinessException.forbidden("教师只能查看本人所授课程的详情");
-            }
-        }
         List<OfferingView> offerings = offeringMapper.selectOfferingsByCourse(id);
         List<ResourceView> resources = resourceMapper.selectResourcesByCourse(id);
         return Map.of(
                 "course", detail,
                 "offerings", offerings,
                 "resources", resources);
+    }
+
+    /**
+     * 课程已挂接资源列表（US-07）。
+     *
+     * <p>仅返回 {@code associated=1} 的资源，并复用课程详情的数据范围校验，
+     * 防止教师通过课程 ID 读取他人课程的资源清单。
+     */
+    public List<ResourceView> resourcesOf(Long courseId, CurrentUser user) {
+        requireCourseAccess(courseId, user, "教师只能查看本人所授课程的资源");
+        return resourceMapper.selectResourcesByCourse(courseId);
     }
 
     /** 课程编号是否已存在 */
@@ -181,41 +182,105 @@ public class CourseService {
         return offeringMapper.selectOfferingsByCourse(courseId);
     }
 
-    /** 挂接资源到课程 */
+    /**
+     * 挂接资源到课程（US-07）。
+     *
+     * <p>幂等语义：首次挂接新增行；重复挂接或解绑后重新挂接只把 {@code associated} 置 1，
+     * 不新增行。并发重复提交触发唯一键冲突时，回查已有行并恢复为已挂接状态。
+     */
     @Transactional(rollbackFor = Exception.class)
-    public void attachResource(Long courseId, Long resourceId) {
-        if (courseMapper.selectById(courseId) == null) {
-            throw BusinessException.notFound("课程不存在");
+    public void attachResource(Long courseId, Long resourceId, CurrentUser user) {
+        if (resourceId == null) {
+            throw new BusinessException("资源ID不能为空");
         }
+        requireCourseAccess(courseId, user, "教师只能向本人所授课程挂接资源");
         if (resourceMapper.selectById(resourceId) == null) {
             throw BusinessException.notFound("教学资源不存在");
         }
-        CourseResource exist = courseResourceMapper.selectOne(Wrappers.<CourseResource>lambdaQuery()
-                .eq(CourseResource::getCourseId, courseId)
-                .eq(CourseResource::getResourceId, resourceId));
+        requireResourceVisible(resourceId, user, "教师只能挂接本人可见范围内的教学资源");
+
+        CourseResource exist = findCourseResource(courseId, resourceId);
         if (exist == null) {
             CourseResource cr = new CourseResource();
             cr.setCourseId(courseId);
             cr.setResourceId(resourceId);
             cr.setAssociated(1);
-            courseResourceMapper.insert(cr);
-        } else if (exist.getAssociated() == null || exist.getAssociated() != 1) {
+            try {
+                courseResourceMapper.insert(cr);
+            } catch (DuplicateKeyException e) {
+                // 并发重复挂接：唯一键 uk_course_resource 拦截后，复用已存在行
+                CourseResource concurrent = findCourseResource(courseId, resourceId);
+                if (concurrent != null && !isAssociated(concurrent)) {
+                    concurrent.setAssociated(1);
+                    courseResourceMapper.updateById(concurrent);
+                }
+            }
+        } else if (!isAssociated(exist)) {
             exist.setAssociated(1);
             courseResourceMapper.updateById(exist);
         }
     }
 
-    /** 解除课程与资源的挂接（保留历史记录，仅置 associated=0） */
+    /**
+     * 解除课程与资源的挂接（US-07 软解绑）。
+     *
+     * <p>保留挂接行并将 {@code associated} 置 0，便于追溯；对已解绑记录再次解绑按幂等处理。
+     */
     @Transactional(rollbackFor = Exception.class)
-    public void detachResource(Long courseId, Long resourceId) {
-        CourseResource exist = courseResourceMapper.selectOne(Wrappers.<CourseResource>lambdaQuery()
-                .eq(CourseResource::getCourseId, courseId)
-                .eq(CourseResource::getResourceId, resourceId));
+    public void detachResource(Long courseId, Long resourceId, CurrentUser user) {
+        if (resourceId == null) {
+            throw new BusinessException("资源ID不能为空");
+        }
+        requireCourseAccess(courseId, user, "教师只能解除本人所授课程的资源挂接");
+        if (resourceMapper.selectById(resourceId) == null) {
+            throw BusinessException.notFound("教学资源不存在");
+        }
+        requireResourceVisible(resourceId, user, "教师只能解除本人可见范围内资源的挂接");
+
+        CourseResource exist = findCourseResource(courseId, resourceId);
         if (exist == null) {
             throw BusinessException.notFound("该课程未挂接此资源");
         }
-        exist.setAssociated(0);
-        courseResourceMapper.updateById(exist);
+        if (isAssociated(exist)) {
+            exist.setAssociated(0);
+            courseResourceMapper.updateById(exist);
+        }
+    }
+
+    /** 课程存在性 + 教师课程数据范围校验 */
+    private void requireCourseAccess(Long courseId, CurrentUser user, String forbiddenMessage) {
+        if (courseMapper.selectById(courseId) == null) {
+            throw BusinessException.notFound("课程不存在");
+        }
+        Long selfTeacherId = dataScopeService.teacherScope(user);
+        if (selfTeacherId != null && !isCourseOfTeacher(courseId, selfTeacherId)) {
+            throw BusinessException.forbidden(forbiddenMessage);
+        }
+    }
+
+    /** 教师资源数据范围校验；非教师角色不受限 */
+    private void requireResourceVisible(Long resourceId, CurrentUser user, String forbiddenMessage) {
+        Long selfTeacherId = dataScopeService.teacherScope(user);
+        if (selfTeacherId != null && resourceMapper.countVisibleToTeacher(resourceId, selfTeacherId) == 0) {
+            throw BusinessException.forbidden(forbiddenMessage);
+        }
+    }
+
+    /** 课程是否在教师负责或讲授范围内 */
+    private boolean isCourseOfTeacher(Long courseId, Long teacherId) {
+        return courseMapper.selectCoursesOfTeacher(teacherId).stream()
+                .anyMatch(c -> courseId.equals(c.getId()));
+    }
+
+    /** 查询课程—资源挂接行（含已软解绑记录） */
+    private CourseResource findCourseResource(Long courseId, Long resourceId) {
+        return courseResourceMapper.selectOne(Wrappers.<CourseResource>lambdaQuery()
+                .eq(CourseResource::getCourseId, courseId)
+                .eq(CourseResource::getResourceId, resourceId));
+    }
+
+    private boolean isAssociated(CourseResource courseResource) {
+        return courseResource.getAssociated() != null && courseResource.getAssociated() == 1;
     }
 
     /**

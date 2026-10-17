@@ -29,6 +29,8 @@ desktop.ini
 # 日志与临时文件
 *.log
 logs/
+# 例外：Sprint 2 证据链中的真实测试日志需随仓库提交
+!docs/evidence/**/*.log
 
 # 测试与自检临时目录
 _verify/

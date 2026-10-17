@@ -66,14 +66,14 @@ public class ResourceController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('" + PermissionCodes.RESOURCE_READ + "')")
     public ApiResponse<ResourceView> detail(@PathVariable Long id) {
-        return ApiResponse.ok(resourceService.detail(id));
+        return ApiResponse.ok(resourceService.detail(id, CurrentUserHolder.require()));
     }
 
     /** 某课程已挂接的资源 */
     @GetMapping("/by-course/{courseId}")
     @PreAuthorize("hasAuthority('" + PermissionCodes.RESOURCE_READ + "')")
     public ApiResponse<List<ResourceView>> byCourse(@PathVariable Long courseId) {
-        return ApiResponse.ok(resourceService.byCourse(courseId));
+        return ApiResponse.ok(resourceService.byCourse(courseId, CurrentUserHolder.require()));
     }
 
     /** 新建资源 */
@@ -90,7 +90,7 @@ public class ResourceController {
     @AuditLog(action = "修改", targetType = "RESOURCE", idParamIndex = 0)
     public ApiResponse<TeachingResource> update(@PathVariable Long id,
                                                 @RequestBody TeachingResource resource) {
-        return ApiResponse.ok(resourceService.update(id, resource));
+        return ApiResponse.ok(resourceService.update(id, resource, CurrentUserHolder.require()));
     }
 
     /** 删除资源 */
@@ -98,7 +98,7 @@ public class ResourceController {
     @PreAuthorize("hasAuthority('" + PermissionCodes.RESOURCE_WRITE + "')")
     @AuditLog(action = "删除", targetType = "RESOURCE", idParamIndex = 0)
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        resourceService.delete(id);
+        resourceService.delete(id, CurrentUserHolder.require());
         return ApiResponse.ok();
     }
 

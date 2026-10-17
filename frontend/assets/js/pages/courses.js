@@ -13,6 +13,9 @@
  *   GET    /api/courses/{id}
  *   GET    /api/courses/{id}/offerings
  *   GET    /api/courses/{id}/resources
+ *   POST   /api/courses/{id}/resources      挂接资源
+ *   DELETE /api/courses/{id}/resources/{rid} 解除挂接（软解绑）
+ *   GET    /api/resources                   挂接候选资源（按关键词/类型筛选）
  *   POST   /api/courses
  *   PUT    /api/courses/{id}
  *   DELETE /api/courses/{id}
@@ -31,6 +34,8 @@
   var TYPES = ['专业必修课', '专业选修课', '通识必修课', '通识选修课', '实践课'];
   /** 课程状态候选值 */
   var STATUSES = ['正常', '停用', '筹建'];
+  /** 资源类型候选值（与后端 ResourceService.resourceTypes 保持一致） */
+  var RESOURCE_TYPES = ['课件', '教案', '视频', '习题', '参考文献'];
 
   /** 院系下拉候选（从列表数据自动归纳，避免依赖额外的院系接口） */
   var departmentOptions = [];
@@ -40,6 +45,21 @@
     if (!res) { return []; }
     if (Object.prototype.toString.call(res) === '[object Array]') { return res; }
     return res.records || res.list || res.rows || [];
+  }
+
+  /**
+   * 路由竞态守卫（模块级入口）。
+   *
+   * <p>详情抽屉、行内请求在 render 作用域之外发起，必须在此按调用时令牌重新取 guard，
+   * 不能复用 render 内的局部变量（原实现直接引用未定义变量，导致抽屉打不开）。
+   */
+  function guardTask(fn) {
+    return AJ.Router.guard()(fn);
+  }
+
+  /** 课程详情接口返回 {course, offerings, resources}，统一解包为课程对象 */
+  function unwrapCourse(res) {
+    return res && res.course ? res.course : res;
   }
 
   /** 生成带候选项的下拉框 HTML（当前值不在候选里时补一个选项，避免编辑丢值） */
@@ -179,14 +199,15 @@
     });
 
     Api.get('/courses/' + encodeURIComponent(id))
-      .then(guard(function (course) {
+      .then(guardTask(function (res) {
         d.body.innerHTML = '';
+        var course = unwrapCourse(res);
         if (!course) {
           d.body.appendChild(UI.emptyStateEl('课程不存在', '该课程可能已被删除'));
           return;
         }
         renderDetail(d, course, onChanged);
-      }), guard(function (err) {
+      }), guardTask(function (err) {
         d.body.innerHTML = '';
         d.body.appendChild(UI.errorBox((err && err.message) || '课程详情加载失败'));
       }));
@@ -221,9 +242,9 @@
     var offeringSection = UI.descSection('开课情况', UI.loadingBlock('加载中…'));
     d.body.appendChild(offeringSection);
 
-    // 挂接资源
-    var resourceSection = UI.descSection('挂接的教学资源', UI.loadingBlock('加载中…'));
-    d.body.appendChild(resourceSection);
+    // 挂接资源（US-07：内联挂接面板 + 两次点击确认解绑）
+    var resourceSection = buildResourceSection(course, onChanged);
+    d.body.appendChild(resourceSection.el);
 
     // 写操作
     if (Api.can('course:write')) {
@@ -231,7 +252,7 @@
     }
 
     Api.get('/courses/' + encodeURIComponent(course.id) + '/offerings')
-      .then(guard(function (res) {
+      .then(guardTask(function (res) {
         UI.fillSection(offeringSection, UI.miniTable([
           { title: '学期', key: 'semester' },
           { title: '教学班', key: 'className' },
@@ -240,30 +261,231 @@
             render: function (v, row) { return util.pick(row, ['studentCount', 'studentTotal'], '—'); } },
           { title: '状态', key: 'offeringStatus' }
         ], asArray(res), '该课程暂无开课记录'));
-      }), guard(function (err) {
+      }), guardTask(function (err) {
         UI.fillSection(offeringSection, UI.errorBox((err && err.message) || '开课记录加载失败'));
       }));
 
-    Api.get('/courses/' + encodeURIComponent(course.id) + '/resources')
-      .then(guard(function (res) {
-        UI.fillSection(resourceSection, UI.miniTable([
-          { title: '资源名称', key: 'resourceName' },
-          {
-            title: '类型', key: 'resourceType',
-            render: function (v, row) { return util.pick(row, ['resourceType', 'type'], ''); }
-          },
-          { title: '状态', key: 'status' },
-          {
-            title: '链接', key: 'url', raw: true,
-            render: function (v, row) {
-              var u = util.pick(row, ['url', 'fileUrl', 'link'], '');
-              return u ? '<a href="' + util.escape(u) + '" target="_blank" rel="noopener noreferrer">打开</a>' : '—';
-            }
+    resourceSection.load();
+  }
+
+  /**
+   * 构建「挂接的教学资源」分区。
+   *
+   * <p>采用内联面板而非第二层抽屉：`UI.drawer` 与 `UI.formModal` 存在 z-index 叠层冲突，
+   * 且 Esc 会同时关闭两层。挂接候选仅保留「本课程资源」或「未绑定教学班的公共资源」，
+   * 与 `course_resource` 的课程维度语义一致。
+   */
+  function buildResourceSection(course, onChanged) {
+    var section = UI.descSection('挂接的教学资源', UI.loadingBlock('加载中…'));
+    var canWrite = Api.can('resource:write');
+    var resources = [];
+    var confirmId = null;
+    var panelOpen = false;
+    var keyword = '';
+    var resourceType = '';
+    var candidates = [];
+    var candidateBox = null;
+    var candidateLoading = false;
+    var candidateError = '';
+
+    function load() {
+      UI.fillSection(section, UI.loadingBlock('加载中…'));
+      Api.get('/courses/' + encodeURIComponent(course.id) + '/resources')
+        .then(guardTask(function (res) {
+          resources = asArray(res);
+          confirmId = null;
+          paint();
+        }), guardTask(function (err) {
+          UI.fillSection(section, UI.errorBox((err && err.message) || '资源列表加载失败', load));
+        }));
+    }
+
+    function paint() {
+      var wrap = document.createElement('div');
+      // 先挂事件，再填充内容；重新 paint 后监听器随之替换，不会重复绑定
+      wrap.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('button[data-act="detach"]') : null;
+        if (!btn) { return; }
+        var rid = btn.getAttribute('data-id');
+        if (String(confirmId) !== String(rid)) {
+          confirmId = rid;
+          paint();
+          return;
+        }
+        confirmId = null;
+        Api.del('/courses/' + encodeURIComponent(course.id) + '/resources/' + encodeURIComponent(rid))
+          .then(guardTask(function () {
+            UI.toast('已解除挂接', 'success');
+            load();
+            if (typeof onChanged === 'function') { onChanged(); }
+          }), guardTask(function (err) {
+            UI.toast((err && err.message) || '解除挂接失败', 'error');
+          }));
+      });
+
+      var columns = [
+        { title: '资源名称', key: 'resourceName' },
+        { title: '类型', key: 'resourceType' },
+        { title: '状态', key: 'status' },
+        {
+          title: '链接', raw: true,
+          render: function (v, row) {
+            var u = util.pick(row, ['fileUrl', 'url', 'link'], '');
+            return u ? '<a href="' + util.escape(u) + '" target="_blank" rel="noopener noreferrer">打开</a>' : '—';
           }
-        ], asArray(res), '该课程暂无挂接资源'));
-      }), guard(function (err) {
-        UI.fillSection(resourceSection, UI.errorBox((err && err.message) || '资源列表加载失败'));
+        }
+      ];
+      if (canWrite) {
+        columns.push({
+          title: '操作', raw: true, align: 'center',
+          render: function (v, row) {
+            var confirming = String(confirmId) === String(row.id);
+            return '<button class="btn-link' + (confirming ? ' danger' : '') + '"' +
+              ' data-act="detach" data-id="' + util.escape(row.id) + '">' +
+              (confirming ? '确认解除' : '解除挂接') + '</button>';
+          }
+        });
+      }
+
+      if (canWrite) {
+        var tools = document.createElement('div');
+        tools.style.display = 'flex';
+        tools.style.gap = '8px';
+        tools.style.marginBottom = '10px';
+        var attachBtn = document.createElement('button');
+        attachBtn.type = 'button';
+        attachBtn.className = 'btn btn-sm';
+        attachBtn.textContent = panelOpen ? '收起挂接面板' : '挂接资源';
+        attachBtn.addEventListener('click', function () {
+          panelOpen = !panelOpen;
+          paint();
+        });
+        tools.appendChild(attachBtn);
+        wrap.appendChild(tools);
+      }
+
+      wrap.appendChild(UI.miniTable(columns, resources, '该课程暂无挂接资源'));
+
+      if (panelOpen) {
+        wrap.appendChild(buildAttachPanel());
+      }
+      UI.fillSection(section, wrap);
+    }
+
+    function buildAttachPanel() {
+      var panel = document.createElement('div');
+      panel.style.background = '#f8fafc';
+      panel.style.border = '1px solid #e2e8f0';
+      panel.style.borderRadius = '6px';
+      panel.style.padding = '10px';
+      panel.style.marginTop = '10px';
+
+      var bar = document.createElement('div');
+      bar.style.display = 'flex';
+      bar.style.gap = '8px';
+      bar.style.marginBottom = '8px';
+
+      var kw = document.createElement('input');
+      kw.className = 'input';
+      kw.placeholder = '资源名称 / 说明';
+      kw.value = keyword;
+      kw.style.maxWidth = '220px';
+      kw.addEventListener('input', function () { keyword = kw.value; });
+
+      var typeSel = document.createElement('select');
+      typeSel.className = 'select';
+      typeSel.style.maxWidth = '140px';
+      typeSel.innerHTML = '<option value="">全部类型</option>' +
+        RESOURCE_TYPES.map(function (t) {
+          return '<option value="' + util.escape(t) + '">' + util.escape(t) + '</option>';
+        }).join('');
+      typeSel.value = resourceType;
+      typeSel.addEventListener('change', function () { resourceType = typeSel.value; });
+
+      var searchBtn = document.createElement('button');
+      searchBtn.type = 'button';
+      searchBtn.className = 'btn btn-sm';
+      searchBtn.textContent = '搜索候选资源';
+      searchBtn.addEventListener('click', searchCandidates);
+
+      bar.appendChild(kw);
+      bar.appendChild(typeSel);
+      bar.appendChild(searchBtn);
+      panel.appendChild(bar);
+
+      candidateBox = document.createElement('div');
+      candidateBox.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('button[data-attach-id]') : null;
+        if (!btn) { return; }
+        var rid = btn.getAttribute('data-attach-id');
+        btn.disabled = true;
+        Api.post('/courses/' + encodeURIComponent(course.id) + '/resources', { resourceId: Number(rid) })
+          .then(guardTask(function () {
+            UI.toast('资源已挂接', 'success');
+            load();
+            if (typeof onChanged === 'function') { onChanged(); }
+          }), guardTask(function (err) {
+            UI.toast((err && err.message) || '挂接失败', 'error');
+            btn.disabled = false;
+          }));
+      });
+      panel.appendChild(candidateBox);
+
+      searchCandidates();
+      return panel;
+    }
+
+    function searchCandidates() {
+      candidateLoading = true;
+      candidateError = '';
+      renderCandidates();
+      Api.get('/resources', {
+        keyword: keyword || '', resourceType: resourceType || '', page: 1, size: 100
+      }).then(guardTask(function (res) {
+        var attached = {};
+        resources.forEach(function (r) { attached[String(r.id)] = true; });
+        candidates = asArray(res).filter(function (r) {
+          if (attached[String(r.id)]) { return false; }
+          // 未绑定教学班的公共资源，或属于当前课程的教学班资源
+          return !r.offeringId || String(r.courseId) === String(course.id);
+        });
+        candidateLoading = false;
+        renderCandidates();
+      }), guardTask(function (err) {
+        candidateLoading = false;
+        candidateError = (err && err.message) || '候选资源加载失败';
+        renderCandidates();
       }));
+    }
+
+    function renderCandidates() {
+      if (!candidateBox) { return; }
+      candidateBox.innerHTML = '';
+      if (candidateLoading) {
+        candidateBox.appendChild(UI.loadingBlock('正在加载候选资源…'));
+        return;
+      }
+      if (candidateError) {
+        candidateBox.appendChild(UI.errorBox(candidateError, searchCandidates));
+        return;
+      }
+      candidateBox.appendChild(UI.miniTable([
+        { title: '资源名称', key: 'resourceName' },
+        { title: '类型', key: 'resourceType' },
+        {
+          title: '教学班', key: 'className',
+          render: function (v, row) { return util.pick(row, ['className', 'offeringCode'], '公共资源'); }
+        },
+        {
+          title: '操作', raw: true, align: 'center',
+          render: function (v, row) {
+            return '<button class="btn-link" data-attach-id="' + util.escape(row.id) + '">挂接</button>';
+          }
+        }
+      ], candidates, '没有可挂接的资源（仅显示本课程或未绑定教学班的资源）'));
+    }
+
+    return { el: section, load: load };
   }
 
   function buildDetailActions(course, d, onChanged) {
@@ -494,15 +716,15 @@
       if (act === 'detail') {
         openDetail(id, tbl.reload);
       } else if (act === 'edit') {
-        Api.get('/courses/' + encodeURIComponent(id)).then(guard(function (course) {
-          openForm(course, tbl.reload);
+        Api.get('/courses/' + encodeURIComponent(id)).then(guard(function (res) {
+          openForm(unwrapCourse(res), tbl.reload);
         }), guard(function (err) {
           UI.toast((err && err.message) || '课程信息加载失败', 'error');
         }));
       } else if (act === 'del') {
         // 先取详情，让确认框显示课程名；取不到时退化为按 ID 删除
-        Api.get('/courses/' + encodeURIComponent(id)).then(guard(function (course) {
-          confirmDelete(course, tbl.reload);
+        Api.get('/courses/' + encodeURIComponent(id)).then(guard(function (res) {
+          confirmDelete(unwrapCourse(res), tbl.reload);
         }), guard(function () {
           confirmDelete({ id: id, courseName: 'ID=' + id }, tbl.reload);
         }));
