@@ -134,17 +134,28 @@
 
     function load() {
       body.innerHTML = UI.loadingBlock('正在加载覆盖率数据…');
-      Api.get('/supervision/coverage')
-        .then(function (data) {
-          renderData(body, parseCoverage(data));
-        }, function (err) {
-          body.innerHTML = '';
-          body.appendChild(UI.errorBox((err && err.message) || '覆盖率数据加载失败', load));
-        });
+      Promise.all([
+        Api.get('/supervision/coverage'),
+        Api.get('/supervision/coverage/pending').then(function (res) {
+          return asArray(res);
+        }, function () { return []; })
+      ]).then(function (res) {
+        renderData(body, parseCoverage(res[0]), res[1]);
+      }, function (err) {
+        body.innerHTML = '';
+        body.appendChild(UI.errorBox((err && err.message) || '覆盖率数据加载失败', load));
+      });
     }
   }
 
-  function renderData(body, cov) {
+  /** 待督导清单里的安排状态标签 */
+  function pendingStatusBadge(v) {
+    var s = String(v || '待安排');
+    var tone = s === '已安排' ? 'blue' : 'orange';
+    return '<span class="badge badge-' + tone + '">' + util.escape(s) + '</span>';
+  }
+
+  function renderData(body, cov, pending) {
     // 销毁上一轮图表
     mounted.forEach(function (c) { if (c && c.destroy) { try { c.destroy(); } catch (e) { /* 忽略 */ } } });
     mounted = [];
@@ -192,7 +203,45 @@
     heroCard.body.appendChild(hero);
     body.appendChild(heroCard.el);
 
-    /* ---------- 2. 按院系 ---------- */
+    /* ---------- 2. 待督导教学班（听评课状态联动） ---------- */
+    pending = pending || [];
+    var pendingCard = UI.card({ title: '待督导教学班（' + pending.length + ' 个）' });
+    if (pending.length) {
+      var rows = pending.slice(0, 12);
+      pendingCard.body.appendChild(UI.miniTable([
+        {
+          title: '课程', render: function (v, row) {
+            return util.pick(row, ['courseName', 'courseCode'], '—');
+          }
+        },
+        { title: '教学班', key: 'className' },
+        { title: '学期', key: 'semester' },
+        { title: '授课教师', key: 'teacherName' },
+        {
+          title: '督导状态', align: 'center', raw: true,
+          render: function (v, row) {
+            return pendingStatusBadge(util.pick(row, ['supervisionStatus'], '待安排'));
+          }
+        }
+      ], rows, '暂无待督导教学班'));
+      var more = document.createElement('div');
+      more.className = 'text-sub';
+      more.style.marginTop = '8px';
+      more.textContent = pending.length > 12
+        ? '仅显示前 12 个，共 ' + pending.length + ' 个待督导教学班。'
+        : '完成听评课后点击上方“刷新”，覆盖率会自动更新。';
+      pendingCard.body.appendChild(more);
+    } else {
+      pendingCard.body.appendChild(UI.emptyStateEl('暂无待督导教学班',
+        '所有“正常开课”教学班均已有已完成的听评课记录'));
+    }
+    var pendingActions = document.createElement('div');
+    pendingActions.style.marginTop = '10px';
+    pendingActions.innerHTML = '<a class="btn btn-sm" href="#/supervision">去听评课页安排 / 完成</a>';
+    pendingCard.body.appendChild(pendingActions);
+    body.appendChild(pendingCard.el);
+
+    /* ---------- 3. 按院系 ---------- */
     if (deptPoints.length) {
       var grid = document.createElement('div');
       grid.className = 'grid grid-2';
@@ -239,7 +288,7 @@
       body.appendChild(grid);
     }
 
-    /* ---------- 3. 按学期趋势 ---------- */
+    /* ---------- 4. 按学期趋势 ---------- */
     if (semPoints.length) {
       var semGrid = document.createElement('div');
       semGrid.className = 'grid grid-2';
@@ -271,7 +320,7 @@
       body.appendChild(semGrid);
     }
 
-    /* ---------- 4. 无分解数据时的提示 ---------- */
+    /* ---------- 5. 无分解数据时的提示 ---------- */
     if (!deptPoints.length && !semPoints.length) {
       var tip = document.createElement('div');
       tip.innerHTML = UI.emptyState('暂无按院系 / 按学期的分解数据',
@@ -279,7 +328,7 @@
       body.appendChild(tip);
     }
 
-    /* ---------- 5. 口径再次落款（数据字典引用） ---------- */
+    /* ---------- 6. 口径再次落款（数据字典引用） ---------- */
     var foot = document.createElement('div');
     foot.className = 'text-sub';
     foot.style.marginTop = '4px';

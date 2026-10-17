@@ -240,4 +240,151 @@ class CoverageAndDashboardIT extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("TEACHER"));
     }
+
+    // ==================== Sprint 2 US-10：听评课状态机 ====================
+
+    @Test
+    @DisplayName("TC-US10-01 督导可加载候选教师，教师访问被拦截")
+    void supervisorCandidates() throws Exception {
+        String supervisorToken = login("supervisor");
+        mockMvc.perform(get("/api/supervisions/supervisors")
+                        .header("Authorization", bearer(supervisorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(5));
+
+        String teacherToken = login("teacher1");
+        mockMvc.perform(get("/api/supervisions/supervisors")
+                        .header("Authorization", bearer(teacherToken)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("TC-US10-02 待督导清单带出安排状态（已安排/待安排）")
+    void pendingListWithSupervisionStatus() throws Exception {
+        String token = login("supervisor");
+        mockMvc.perform(get("/api/supervision/coverage/pending")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data[?(@.supervisionStatus=='已安排')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[?(@.supervisionStatus=='待安排')]").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("TC-US10-03 已安排状态必须填写计划听课日期")
+    void arrangedRequiresPlanDate() throws Exception {
+        String token = login("supervisor");
+        mockMvc.perform(post("/api/supervisions")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"offeringId\":5,\"supervisorId\":5,\"status\":\"已安排\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("已安排状态必须填写计划听课日期"));
+    }
+
+    @Test
+    @DisplayName("TC-US10-04 非法状态、待安排携带日期、非完成状态填评分均被拒绝")
+    void invalidStatusAndDateRules() throws Exception {
+        String token = login("supervisor");
+
+        mockMvc.perform(post("/api/supervisions")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"offeringId\":5,\"supervisorId\":5,\"status\":\"已取消\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("听评课状态不合法：已取消"));
+
+        mockMvc.perform(post("/api/supervisions")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"offeringId\":5,\"supervisorId\":5,\"status\":\"待安排\","
+                                + "\"planDate\":\"2026-10-20\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("待安排状态不应填写计划听课日期"));
+
+        mockMvc.perform(post("/api/supervisions")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"offeringId\":5,\"supervisorId\":5,\"status\":\"已安排\","
+                                + "\"planDate\":\"2026-10-20\",\"score\":90.0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("只有已完成状态可以填写听课评分"));
+    }
+
+    @Test
+    @DisplayName("TC-US10-05 完整状态流转：待安排→已安排→已完成，覆盖率提升")
+    void fullStateFlowIncreasesCoverage() throws Exception {
+        String token = login("supervisor");
+
+        // 教学班 7 是正常开课且尚无已完成听课记录；先建一条待安排记录
+        String created = mockMvc.perform(post("/api/supervisions")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"offeringId\":7,\"supervisorId\":5,\"status\":\"待安排\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("待安排"))
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(created).path("data").path("id").asLong();
+
+        // 待安排 → 已安排：补齐计划日期
+        mockMvc.perform(put("/api/supervisions/" + id)
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"已安排\",\"planDate\":\"2026-10-20\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("已安排"))
+                .andExpect(jsonPath("$.data.planDate").isNotEmpty());
+
+        // 已安排 → 已完成：回填完成日期、评分、评语
+        mockMvc.perform(put("/api/supervisions/" + id)
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"已完成\",\"finishDate\":\"2026-10-21\","
+                                + "\"score\":90.0,\"comment\":\"状态机闭环验证\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("已完成"))
+                .andExpect(jsonPath("$.data.finishDate").isNotEmpty());
+
+        // 覆盖率从 2/5 = 40.0% 提升到 3/5 = 60.0%
+        mockMvc.perform(get("/api/supervision/coverage")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.supervisedOfferings").value(3))
+                .andExpect(jsonPath("$.data.coverageRate").value(60.0));
+    }
+
+    @Test
+    @DisplayName("TC-US10-06 已完成不可回退、完成日期不得早于计划、评分不得越界")
+    void transitionAndDateGuards() throws Exception {
+        String token = login("supervisor");
+
+        // 已完成（id=1）不能回退为已安排
+        mockMvc.perform(put("/api/supervisions/1")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"已安排\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("不允许从「已完成」流转到「已安排」"));
+
+        // 已安排（id=2）完成日期早于计划日期（2025-10-09）被拒绝
+        mockMvc.perform(put("/api/supervisions/2")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"已完成\",\"finishDate\":\"2020-01-01\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("完成日期不能早于计划听课日期"));
+
+        // 评分超过 100 被拒绝
+        mockMvc.perform(post("/api/supervisions")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"offeringId\":5,\"supervisorId\":5,\"status\":\"已完成\","
+                                + "\"score\":101.0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("听课评分需在 0—100 之间"));
+    }
 }

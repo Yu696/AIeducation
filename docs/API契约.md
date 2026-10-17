@@ -1,6 +1,8 @@
-# 爱教学 Sprint 1 · 接口契约（冻结点：计划会开场 10 分钟）
+# 爱教学 Sprint 1 / Sprint 2 · 接口契约
 
-> 本文件是 Sprint 1 的**接口冻结基线**。前后端、AI 编码智能体一律以此为准，禁止无契约并行开发（见表7改进措施第2条）。
+> 本文件在 Sprint 1 **接口冻结基线**（v1.0，计划会开场 10 分钟冻结）之上，追加 Sprint 2 v1.2 增量：
+> 听评课状态机、督导候选教师接口、待督导清单状态字段、备课查看统计字段。
+> 前后端、AI 编码智能体一律以此为准，禁止无契约并行开发（见表7改进措施第2条）。
 
 ## 0. 通用约定
 
@@ -109,6 +111,12 @@
 | GET | `/api/resources/prep` | `resource:prep` | **备课查看**：按教师聚合"我教的课 → 可用资源"列表 |
 | GET | `/api/resources/export` | `resource:read` | 导出 CSV |
 
+**备课查看返回结构（Sprint 2 v1.2 增强）**：
+
+- `groups[]` 增加 `offeringCount`、`classNames[]`、`teacherNames[]`、`resourceCount`、`missingResources`；
+- 正常开课但暂无资源的课程也会出现在 `groups[]` 中，`resourceCount=0`、`missingResources=true`；
+- 顶层增加 `courseCount`、`coursesWithoutResources`、`averageResourcesPerCourse`、`resourceTypeStats[]`。
+
 ## 6. 教学评价管理（史诗三，只读展示）
 
 | 方法 | 路径 | 权限码 | 说明 |
@@ -128,9 +136,19 @@
 | DELETE | `/api/supervisions/{id}` | `supervision:write` | 删除听评课记录 |
 | GET | `/api/supervisions/export` | `supervision:read` | 听评课明细导出 CSV（与覆盖率导出的区别：本接口导出明细记录） |
 | GET | `/api/supervisions/statuses` | `supervision:read` | 状态候选值：待安排/已安排/已完成 |
+| GET | `/api/supervisions/supervisors` | `supervision:read` | 督导候选教师（`id/name/departmentCode/departmentName`），供教学督导账号安排听评课时选择，不依赖 `user:read` |
 | GET | `/api/supervision/coverage` | `coverage:read` | **督导覆盖率**：`{totalOfferings, supervisedOfferings, coverageRate, byDepartment[], bySemester[]}` |
-| GET | `/api/supervision/coverage/pending` | `coverage:read` | 待安排听评课的教学班清单 |
+| GET | `/api/supervision/coverage/pending` | `coverage:read` | 待督导教学班清单；每条增加 `supervisionStatus`（待安排/已安排），便于页面显示安排状态 |
 | GET | `/api/supervision/coverage/export` | `coverage:read` | 覆盖率导出 CSV（按院系 + 按学期两个维度） |
+
+**听评课状态机（Sprint 2 v1.2）**：
+
+- 状态取值：`待安排`、`已安排`、`已完成`；
+- 允许流转：`待安排 → 已安排 → 已完成`，只能向前；`已完成` 为终态，非法流转返回 400；
+- `已安排` 必须填写 `planDate`（计划听课日期），且不得填写 `finishDate`；
+- `已完成` 未填 `finishDate` 时自动补当天；`finishDate` 不得早于 `planDate`；
+- 只有 `已完成` 状态可填写 `score`（0—100）；
+- 更新接口支持部分字段提交，未提交字段沿用原值。
 
 **状态枚举（与数据库一致，中文）**：`supervision.status ∈ {待安排, 已安排, 已完成}`；
 `offering.offering_status ∈ {正常开课, 停开, 已结课}`；
@@ -174,3 +192,4 @@
 | --- | --- | --- | --- |
 | v1.0 | Sprint 1 计划会 | 接口冻结，上述清单为 Sprint 1 交付范围 | 杨继鑫（DRI） |
 | v1.1 | Sprint 1 执行期 | ① 补齐听评课明细导出 `/api/supervisions/export` 与状态候选值接口；② 状态枚举统一为中文（`已完成` 等）并写明映射；③ 明确覆盖率院系归属取课程院系 | 杨继鑫（DRI） |
+| v1.2 | Sprint 2 计划会 | ① 听评课状态机与日期/评分校验；② 新增督导候选教师接口 `/api/supervisions/supervisors`；③ 待督导清单返回 `supervisionStatus`；④ 备课查看增加课程数、缺资源标记、平均资源数与资源类型统计 | 刘鹏杰（DRI）、杨继鑫 |

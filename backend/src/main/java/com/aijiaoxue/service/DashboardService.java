@@ -190,7 +190,7 @@ public class DashboardService {
                 card("正常开课教学班", totalOfferings, "个", "全校统计口径"),
                 card("已完成听课", finished, "次", "status=已完成"),
                 card("已安排待听课", arranged, "次", "status=已安排"),
-                card("待安排听课", pending, "个", "尚无已完成听课记录的教学班"),
+                card("待督导教学班", pending, "个", "尚无已完成听课记录（含已安排未完成）"),
                 card("督导覆盖率", coverage.get("coverageRate"), "%", "已完成听课 ÷ 正常开课")));
         data.put("charts", Map.of(
                 "coverageByDepartment", coverage.get("byDepartment"),

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 听评课（督导）接口（US-04）。
@@ -125,5 +126,18 @@ public class SupervisionController {
     @PreAuthorize("hasAuthority('" + PermissionCodes.SUPERVISION_READ + "')")
     public ApiResponse<List<String>> statuses() {
         return ApiResponse.ok(supervisionService.statuses());
+    }
+
+    /**
+     * 督导候选教师。
+     *
+     * <p>教学督导账号默认没有 user:read 权限，不能调用 /api/admin/users；
+     * 本接口仅需 supervision:read，供安排听评课时选择督导教师。
+     */
+    @GetMapping("/supervisors")
+    @PreAuthorize("hasAuthority('" + PermissionCodes.SUPERVISION_READ + "')")
+    public ApiResponse<List<Map<String, Object>>> supervisors(
+            @RequestParam(required = false) String keyword) {
+        return ApiResponse.ok(supervisionService.supervisorCandidates(keyword));
     }
 }

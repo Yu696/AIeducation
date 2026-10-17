@@ -31,7 +31,11 @@ public interface OfferingMapper extends BaseMapper<Offering> {
                                      WHERE s2.offering_id = o.id AND s2.status = '已完成')
                         THEN 1 ELSE 0 END AS supervised,
                    (SELECT COUNT(1) FROM supervision s3
-                     WHERE s3.offering_id = o.id AND s3.status = '已完成') AS supervision_times
+                     WHERE s3.offering_id = o.id AND s3.status = '已完成') AS supervision_times,
+                   COALESCE((SELECT s4.status FROM supervision s4
+                             WHERE s4.offering_id = o.id
+                               AND s4.id = (SELECT MAX(s5.id) FROM supervision s5
+                                            WHERE s5.offering_id = o.id)), '待安排') AS supervision_status
             FROM offering o
             LEFT JOIN course c ON c.id = o.course_id
             LEFT JOIN teacher t ON t.id = o.teacher_id

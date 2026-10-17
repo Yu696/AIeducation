@@ -6,6 +6,7 @@ import com.aijiaoxue.entity.Course;
 import com.aijiaoxue.entity.CourseResource;
 import com.aijiaoxue.entity.Offering;
 import com.aijiaoxue.entity.TeachingResource;
+import com.aijiaoxue.entity.view.OfferingView;
 import com.aijiaoxue.entity.view.ResourceView;
 import com.aijiaoxue.mapper.CourseMapper;
 import com.aijiaoxue.mapper.CourseResourceMapper;
@@ -20,6 +21,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -85,42 +88,119 @@ public class ResourceService {
     /**
      * 备课查看：按「我的课程/教学班 → 可用资源」分组聚合。
      *
-     * <p>返回结构：{@code {groups:[{courseId,courseCode,courseName,semester,resourceCount,resources:[...]}], totalResources}}
+     * <p>Sprint 2 增强：不仅返回有资源的课程，也返回“正常开课但暂无资源”的课程，
+     * 并补充课程数、缺资源课程数、平均资源数、资源类型统计与教学班聚合信息。
+     *
+     * <p>返回结构：{@code {groups:[{courseId,courseCode,courseName,semester,offeringCount,
+     * classNames,teacherNames,resourceCount,missingResources,resources:[...]}],
+     * totalResources,groupCount,courseCount,coursesWithoutResources,averageResourcesPerCourse,resourceTypeStats}}
      */
     public Map<String, Object> prepView(CurrentUser user) {
         Long teacherId = user.requireTeacherId();
         List<ResourceView> resources = resourceMapper.selectPrepResources(teacherId);
+        List<OfferingView> offerings = offeringMapper.selectOfferingsByTeacher(teacherId);
 
-        // 用 LinkedHashMap 保持顺序，key 为「学期 + 课程」组合，避免不同学期的同名课程被合并
+        // 1. 先按「学期 + 课程」归集正常开课的教学班，用于识别“有课但没资源”的课程
+        Map<String, List<OfferingView>> offeringGroups = new LinkedHashMap<>();
+        for (OfferingView o : offerings) {
+            if (!"正常开课".equals(o.getOfferingStatus())) {
+                continue;
+            }
+            String semester = o.getSemester() == null ? "未指定学期" : o.getSemester();
+            String key = semester + "|" + (o.getCourseId() == null ? "_" : o.getCourseId());
+            offeringGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(o);
+        }
+
+        // 2. 按资源归组；key 为「学期 + 课程」，避免不同学期的同名课程被合并
         Map<String, Map<String, Object>> groups = new LinkedHashMap<>();
         for (ResourceView r : resources) {
             String semester = r.getSemester() == null ? "未指定学期" : r.getSemester();
-            String courseName = r.getCourseName() == null ? "未关联课程" : r.getCourseName();
             String key = semester + "|" + (r.getCourseId() == null ? "_" : r.getCourseId());
-            Map<String, Object> group = groups.computeIfAbsent(key, k -> {
-                Map<String, Object> g = new LinkedHashMap<>();
-                g.put("courseId", r.getCourseId());
-                g.put("courseCode", r.getCourseCode());
-                g.put("courseName", courseName);
-                g.put("semester", semester);
-                g.put("resources", new ArrayList<ResourceView>());
-                return g;
-            });
+            Map<String, Object> group = groups.computeIfAbsent(key, k ->
+                    newGroup(r.getCourseId(), r.getCourseCode(), r.getCourseName(), semester));
             @SuppressWarnings("unchecked")
             List<ResourceView> list = (List<ResourceView>) group.get("resources");
             list.add(r);
         }
-        groups.values().forEach(g -> {
+
+        // 3. 把“有课但没资源”的课程也纳入分组，并补充教学班聚合信息
+        for (Map.Entry<String, List<OfferingView>> entry : offeringGroups.entrySet()) {
+            Map<String, Object> group = groups.get(entry.getKey());
+            if (group == null) {
+                OfferingView first = entry.getValue().get(0);
+                group = newGroup(first.getCourseId(), first.getCourseCode(),
+                        first.getCourseName(), first.getSemester());
+                groups.put(entry.getKey(), group);
+            }
+            List<String> classNames = new ArrayList<>();
+            List<String> teacherNames = new ArrayList<>();
+            for (OfferingView o : entry.getValue()) {
+                if (o.getClassName() != null && !o.getClassName().isBlank()
+                        && !classNames.contains(o.getClassName())) {
+                    classNames.add(o.getClassName());
+                }
+                if (o.getTeacherName() != null && !o.getTeacherName().isBlank()
+                        && !teacherNames.contains(o.getTeacherName())) {
+                    teacherNames.add(o.getTeacherName());
+                }
+            }
+            group.put("offeringCount", entry.getValue().size());
+            group.put("classNames", classNames);
+            group.put("teacherNames", teacherNames);
+        }
+
+        // 4. 计算每门课的资源数、缺资源标记与资源类型统计
+        Map<String, Integer> typeCounter = new LinkedHashMap<>();
+        int missing = 0;
+        for (Map<String, Object> group : groups.values()) {
             @SuppressWarnings("unchecked")
-            List<ResourceView> list = (List<ResourceView>) g.get("resources");
-            g.put("resourceCount", list.size());
+            List<ResourceView> list = (List<ResourceView>) group.get("resources");
+            group.putIfAbsent("offeringCount", 0);
+            group.putIfAbsent("classNames", new ArrayList<String>());
+            group.putIfAbsent("teacherNames", new ArrayList<String>());
+            group.put("resourceCount", list.size());
+            group.put("missingResources", list.isEmpty());
+            if (list.isEmpty()) {
+                missing++;
+            }
+            for (ResourceView r : list) {
+                String type = r.getResourceType() == null ? "未分类" : r.getResourceType();
+                typeCounter.merge(type, 1, Integer::sum);
+            }
+        }
+        List<Map<String, Object>> typeStats = new ArrayList<>();
+        typeCounter.forEach((type, count) -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("type", type);
+            item.put("count", count);
+            typeStats.add(item);
         });
+
+        double average = groups.isEmpty() ? 0.0
+                : BigDecimal.valueOf((double) resources.size() / groups.size())
+                        .setScale(1, RoundingMode.HALF_UP).doubleValue();
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("groups", new ArrayList<>(groups.values()));
         data.put("totalResources", resources.size());
         data.put("groupCount", groups.size());
+        data.put("courseCount", groups.size());
+        data.put("coursesWithoutResources", missing);
+        data.put("averageResourcesPerCourse", average);
+        data.put("resourceTypeStats", typeStats);
         return data;
+    }
+
+    /** 构造备课分组的空壳，供资源与教学班两条数据源共用 */
+    private Map<String, Object> newGroup(Long courseId, String courseCode, String courseName,
+                                         String semester) {
+        Map<String, Object> g = new LinkedHashMap<>();
+        g.put("courseId", courseId);
+        g.put("courseCode", courseCode);
+        g.put("courseName", courseName == null ? "未关联课程" : courseName);
+        g.put("semester", semester == null ? "未指定学期" : semester);
+        g.put("resources", new ArrayList<ResourceView>());
+        return g;
     }
 
     /** 某课程已挂接的资源 */

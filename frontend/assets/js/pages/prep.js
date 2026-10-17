@@ -22,11 +22,13 @@
   var util = AJ.util;
 
   var mounted = [];
+  /** 页面状态：保存最近一次接口数据与当前资源类型筛选 */
+  var state = { data: null, type: '' };
 
   function asArray(res) {
     if (!res) { return []; }
     if (Object.prototype.toString.call(res) === '[object Array]') { return res; }
-    return res.records || res.list || res.rows || res.courses || [];
+    return res.groups || res.records || res.list || res.rows || res.courses || [];
   }
 
   /** 从课程对象里取出资源数组（兼容多种字段名） */
@@ -81,7 +83,9 @@
       semester: util.pick(course, ['semester'], ''),
       className: util.pick(course, ['className'], ''),
       teacherName: util.pick(course, ['teacherName'], ''),
-      offeringCount: util.pick(course, ['offeringCount', 'offeringNum'], resources.length ? null : ''),
+      offeringCount: util.pick(course, ['offeringCount', 'offeringNum'], 0),
+      classNames: util.pick(course, ['classNames'], []),
+      missingResources: util.pick(course, ['missingResources'], !resources.length),
       resources: resources || []
     };
   }
@@ -124,12 +128,19 @@
     if (group.semester) { metaParts.push(group.semester); }
     if (group.className) { metaParts.push(group.className); }
     if (group.teacherName) { metaParts.push(group.teacherName); }
+    if (group.offeringCount) { metaParts.push(group.offeringCount + ' 个教学班'); }
+    if (group.classNames && group.classNames.length) {
+      metaParts.push(group.classNames.join('、'));
+    }
+    var count = group.resources.length;
+    var badge = count
+      ? '<span class="badge badge-green">' + count + ' 个资源</span>'
+      : '<span class="badge badge-orange">缺资源</span>';
     head.innerHTML =
       '<span class="prep-course-name">' +
         (group.courseCode ? util.escape(group.courseCode) + ' ' : '') +
         util.escape(group.courseName) +
-      '</span>' +
-      '<span class="badge badge-green">' + group.resources.length + ' 个资源</span>' +
+      '</span>' + badge +
       (metaParts.length ? '<span class="prep-meta">' + util.escape(metaParts.join(' · ')) + '</span>' : '');
     c.appendChild(head);
 
@@ -139,7 +150,15 @@
       group.resources.forEach(function (r) { list.appendChild(resourceCard(r)); });
       c.appendChild(list);
     } else {
-      c.appendChild(UI.emptyStateEl('该课程暂无可用资源', '可到“教学资源管理”挂接资源到本课程'));
+      var empty = document.createElement('div');
+      empty.appendChild(UI.emptyStateEl('该课程暂无可用资源', '可到“教学资源管理”挂接资源到本课程'));
+      var link = document.createElement('a');
+      link.className = 'btn btn-sm';
+      link.href = '#/resources';
+      link.textContent = '去挂接资源';
+      link.style.marginTop = '8px';
+      empty.appendChild(link);
+      c.appendChild(empty);
     }
     return c;
   }
@@ -150,6 +169,7 @@
   function render(container) {
     var guard = AJ.Router.guard();
     mounted = [];
+    state = { data: null, type: '' };
 
     var head = document.createElement('div');
     head.className = 'page-head';
@@ -178,6 +198,7 @@
       body.innerHTML = UI.loadingBlock('正在加载备课资源…');
       Api.get('/resources/prep')
         .then(guard(function (data) {
+          state.data = data;
           renderData(body, data);
         }), guard(function (err) {
           body.innerHTML = '';
@@ -192,7 +213,51 @@
     mounted = [];
     body.innerHTML = '';
 
-    var groups = normalizeGroups(data);
+    var allGroups = normalizeGroups(data);
+
+    // —— 资源类型筛选（US-08 验收：支持按类型筛选） ——
+    var typeSeen = {};
+    var typeOptions = [];
+    allGroups.forEach(function (g) {
+      g.resources.forEach(function (r) {
+        var t = util.pick(r, ['resourceType', 'type'], '');
+        if (t && !typeSeen[t]) { typeSeen[t] = true; typeOptions.push({ value: t, label: t }); }
+      });
+    });
+    if (typeOptions.length) {
+      var filters = UI.filterBar([
+        { name: 'resourceType', label: '资源类型', type: 'select', options: typeOptions, placeholder: '全部类型' }
+      ], {
+        onSearch: function (values) {
+          state.type = values.resourceType || '';
+          renderData(body, state.data);
+        },
+        onReset: function () {
+          state.type = '';
+          renderData(body, state.data);
+        }
+      });
+      filters.setValues({ resourceType: state.type });
+      body.appendChild(filters.el);
+      if (state.type) {
+        body.appendChild(UI.note('当前仅显示资源类型：<strong>' +
+          util.escape(state.type) + '</strong>；切换类型后统计随之变化。'));
+      }
+    }
+
+    // 按当前类型筛选资源；没有匹配资源的课程仍保留，用于提示“缺资源”
+    var groups = allGroups.map(function (g) {
+      var resources = g.resources.filter(function (r) {
+        return !state.type || util.pick(r, ['resourceType', 'type'], '') === state.type;
+      });
+      return {
+        raw: g.raw, key: g.key, courseName: g.courseName, courseCode: g.courseCode,
+        semester: g.semester, className: g.className, teacherName: g.teacherName,
+        offeringCount: g.offeringCount, classNames: g.classNames,
+        missingResources: resources.length === 0,
+        resources: resources
+      };
+    });
     var totalResources = groups.reduce(function (s, g) { return s + g.resources.length; }, 0);
 
     // —— 统计卡片 ——
@@ -216,7 +281,7 @@
       var empty = document.createElement('div');
       empty.className = 'card';
       empty.innerHTML = '<div class="card-body">' +
-        UI.emptyState('暂无备课资源', '当前账号下没有可查看的课程或资源，请确认后端已初始化数据且当前教师有在授课程') +
+        UI.emptyState('暂无在授课程', '当前账号下没有“正常开课”的课程，请确认后端已初始化数据且当前教师有在授课程') +
         '</div>';
       body.appendChild(empty);
       return;

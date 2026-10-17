@@ -214,4 +214,44 @@ class ResourceAndEvaluationIT extends BaseIntegrationTest {
         String csv = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
         org.junit.jupiter.api.Assertions.assertTrue(csv.contains("评价类型"));
     }
+
+    // ---------------- Sprint 2 US-08：备课查看增强 ----------------
+
+    @Test
+    @DisplayName("TC-US08-01 备课查看返回课程数、平均资源数、缺资源课程数与类型统计")
+    void prepViewStatistics() throws Exception {
+        String token = login("teacher1");
+        mockMvc.perform(get("/api/resources/prep").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalResources").value(4))
+                .andExpect(jsonPath("$.data.groupCount").value(3))
+                .andExpect(jsonPath("$.data.courseCount").value(3))
+                .andExpect(jsonPath("$.data.coursesWithoutResources").value(0))
+                .andExpect(jsonPath("$.data.averageResourcesPerCourse").value(1.3))
+                .andExpect(jsonPath("$.data.resourceTypeStats").isArray())
+                .andExpect(jsonPath("$.data.resourceTypeStats.length()").value(4))
+                .andExpect(jsonPath("$.data.groups[0].offeringCount").isNumber())
+                .andExpect(jsonPath("$.data.groups[0].classNames").isArray());
+    }
+
+    @Test
+    @DisplayName("TC-US08-02 正常开课但无资源的课程也出现在备课视图并标记缺资源")
+    @Transactional
+    void prepViewIncludesCourseWithoutResources() throws Exception {
+        // 为教师 1 新增一个正常开课、暂无资源的教学班（课程 6）
+        jdbcTemplate.update("INSERT INTO offering (id, offering_code, course_id, semester, class_name, "
+                + "teacher_id, department_code, capacity, student_count, offering_status, schedule_info, "
+                + "created_at, updated_at) VALUES (8, 'OFF-US08-EMPTY', 6, '2025-2026-1', '测试缺资源班', "
+                + "1, 'CS', 40, 0, '正常开课', '周五 1-2 节', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+
+        String token = login("teacher1");
+        mockMvc.perform(get("/api/resources/prep").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupCount").value(4))
+                .andExpect(jsonPath("$.data.courseCount").value(4))
+                .andExpect(jsonPath("$.data.coursesWithoutResources").value(1))
+                .andExpect(jsonPath("$.data.averageResourcesPerCourse").value(1.0))
+                .andExpect(jsonPath("$.data.groups[?(@.courseId==6)].resourceCount").value(0))
+                .andExpect(jsonPath("$.data.groups[?(@.courseId==6)].missingResources").value(true));
+    }
 }

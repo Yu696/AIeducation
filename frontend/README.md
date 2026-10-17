@@ -27,10 +27,10 @@ frontend/
             ├── offerings.js       开课与授课管理，519 行
             ├── teachers.js        教师信息管理，440 行
             ├── resources.js       教学资源管理，414 行
-            ├── prep.js            备课查看，249 行
+            ├── prep.js            备课查看，323 行
             ├── evaluations.js     教学评价管理，396 行
-            ├── supervision.js     督导与听评课，398 行
-            ├── coverage.js        督导覆盖率，293 行
+            ├── supervision.js     督导与听评课，467 行
+            ├── coverage.js        督导覆盖率，352 行
             └── admin.js           用户与权限管理（三标签页），749 行
 ```
 
@@ -113,8 +113,8 @@ python -m http.server 5500
 | 教学资源管理 | `#/resources` | 全部登录用户（TEACHER 仅本人，由后端强制） | `GET/POST /api/resources`、`GET/PUT/DELETE /api/resources/{id}`、`GET /api/resources/export`、`GET /api/offerings` |
 | 备课查看 | `#/prep` | TEACHER、DIRECTOR、ADMIN | `GET /api/resources/prep` |
 | 教学评价管理 | `#/evaluations` | ADMIN、DIRECTOR、SUPERVISOR、TEACHER | `GET /api/evaluations`、`GET /api/evaluations/summary`、`GET /api/evaluations/{id}`、`GET /api/evaluations/export` |
-| 督导与听评课 | `#/supervision` | ADMIN、SUPERVISOR、DIRECTOR | `GET/POST /api/supervisions`、`PUT /api/supervisions/{id}`、`GET /api/supervisions/export`、`GET /api/offerings`、`GET /api/admin/users`（取督导名单，无 `user:read` 时降级为手工输入） |
-| 督导覆盖率 | `#/coverage` | ADMIN、SUPERVISOR、DIRECTOR | `GET /api/supervision/coverage`、`GET /api/supervision/coverage/export` |
+| 督导与听评课 | `#/supervision` | ADMIN、SUPERVISOR、DIRECTOR | `GET/POST /api/supervisions`、`PUT /api/supervisions/{id}`、`GET /api/supervisions/export`、`GET /api/supervisions/supervisors`（督导候选教师，不依赖 `user:read`）、`GET /api/offerings` |
+| 督导覆盖率 | `#/coverage` | ADMIN、SUPERVISOR、DIRECTOR | `GET /api/supervision/coverage`、`GET /api/supervision/coverage/pending`、`GET /api/supervision/coverage/export` |
 | 用户与权限管理 | `#/admin` | ADMIN | `GET/POST /api/admin/users`、`PUT/DELETE /api/admin/users/{id}`、`PUT /api/admin/users/{id}/password`、`GET /api/admin/roles`、`GET/PUT /api/admin/roles/{roleCode}/permissions`、`GET /api/admin/permissions`、`GET /api/admin/audit-logs` |
 
 另有 `GET /api/config/public`（匿名）用于读取系统名称与当前学期。
@@ -124,10 +124,8 @@ python -m http.server 5500
 ## 五、与接口契约的差异（需后端确认）
 
 1. **`/api/supervisions/export`（听评课明细导出）**
-   契约第 7 节只声明了 `/api/supervision/coverage/export`，没有听评课明细导出。
-   但任务要求「督导与听评课」页支持导出，因此前端调用了
-   `GET /api/supervisions/export`（返回 `text/csv`）。
-   **请后端补上该接口，或告知改用其它路径。**
+   契约 v1.1 已补齐该接口，前端调用路径与契约一致，无需另行确认。
+   覆盖率导出仍使用 `/api/supervision/coverage/export`（按院系 + 按学期两个维度）。
 
 2. **工作台响应字段名未在契约中细化**
    前端对工作台数据做了自适应渲染：标量字段自动生成统计卡片，数组型字段

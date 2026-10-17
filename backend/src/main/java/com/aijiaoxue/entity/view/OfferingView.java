@@ -30,4 +30,6 @@ public class OfferingView {
     private Integer supervised;
     /** 该教学班已完成听课次数 */
     private Integer supervisionTimes;
+    /** 最近一条听评课记录的状态：待安排/已安排/已完成；无记录时为待安排 */
+    private String supervisionStatus;
 }
