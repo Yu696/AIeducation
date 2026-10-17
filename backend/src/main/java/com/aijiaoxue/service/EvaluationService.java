@@ -34,26 +34,26 @@ public class EvaluationService {
         this.dataScopeService = dataScopeService;
     }
 
-    /** 评价列表分页（教师只看本人所授课程，主任只看本院系） */
+    /** 评价列表分页（教师只看本人所授课程，主任只看本院系；courseId/teacherId 为用户下钻筛选） */
     public PageResult<EvaluationView> page(long page, long size, String keyword, Long offeringId,
                                            String evaluationType, String semester, BigDecimal scoreMin,
-                                           BigDecimal scoreMax, CurrentUser user) {
+                                           BigDecimal scoreMax, Long courseId, Long teacherId, CurrentUser user) {
         Page<EvaluationView> p = new Page<>(page, size);
         Long effTeacher = dataScopeService.teacherScope(user);
         String effDept = dataScopeService.effectiveDept(null, user);
         IPage<EvaluationView> result = evaluationMapper.selectEvaluationPage(p, keyword, offeringId,
-                evaluationType, semester, scoreMin, scoreMax, effTeacher, effDept);
+                evaluationType, semester, scoreMin, scoreMax, courseId, teacherId, effTeacher, effDept);
         return new PageResult<>(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords());
     }
 
-    /** 导出用评价列表 */
+    /** 导出用评价列表（口径与页面一致，courseId/teacherId 与页面筛选叠加） */
     public List<EvaluationView> listForExport(String keyword, Long offeringId, String evaluationType,
                                               String semester, BigDecimal scoreMin, BigDecimal scoreMax,
-                                              CurrentUser user) {
+                                              Long courseId, Long teacherId, CurrentUser user) {
         Long effTeacher = dataScopeService.teacherScope(user);
         String effDept = dataScopeService.effectiveDept(null, user);
         return evaluationMapper.selectEvaluationList(keyword, offeringId, evaluationType, semester,
-                scoreMin, scoreMax, effTeacher, effDept);
+                scoreMin, scoreMax, courseId, teacherId, effTeacher, effDept);
     }
 
     /** 评价详情 */
@@ -66,18 +66,21 @@ public class EvaluationService {
     }
 
     /**
-     * 学生评教汇总 + 分数分布。
+     * 学生评教汇总 + 分数分布 + 学期趋势 + 教师维度对比（US-09 分析视图）。
      *
      * <p>口径：仅统计 evaluation_type='学生评教' 的记录；平均分保留 1 位小数（四舍五入）。
+     * <p>courseId / teacherId 为用户筛选（供主任/督导下钻），与数据范围（SELF/部门）叠加生效。
      *
-     * @return summary 列表、distribution 分档、总体平均分
+     * @return summary 列表、distribution 分档、trend 学期趋势、byTeacher 教师对比、总体平均分
      */
-    public Map<String, Object> summary(String semester, CurrentUser user) {
+    public Map<String, Object> summary(String semester, Long courseId, Long teacherId, CurrentUser user) {
         Long effTeacher = dataScopeService.teacherScope(user);
         String effDept = dataScopeService.effectiveDept(null, user);
 
-        List<EvaluationSummaryRow> summary = evaluationMapper.selectEvaluationSummary(semester, effTeacher, effDept);
-        List<Map<String, Object>> distribution = evaluationMapper.selectScoreDistribution(semester, effTeacher, effDept);
+        List<EvaluationSummaryRow> summary = evaluationMapper.selectEvaluationSummary(semester, courseId, teacherId, effTeacher, effDept);
+        List<Map<String, Object>> distribution = evaluationMapper.selectScoreDistribution(semester, courseId, teacherId, effTeacher, effDept);
+        List<Map<String, Object>> trend = evaluationMapper.selectEvaluationTrend(courseId, teacherId, effTeacher, effDept);
+        List<Map<String, Object>> byTeacher = evaluationMapper.selectEvaluationByTeacher(semester, courseId, teacherId, effTeacher, effDept);
 
         // 总体平均分按参评人次加权，避免小样本课程拉偏整体判断
         long totalCount = 0L;
@@ -97,6 +100,8 @@ public class EvaluationService {
         data.put("totalEvaluations", totalCount);
         data.put("overallAvgScore", overallAvg);
         data.put("distribution", normalizeDistribution(distribution));
+        data.put("trend", trend);
+        data.put("byTeacher", byTeacher);
         data.put("caliber", "学生评教汇总口径：仅统计 evaluation_type='学生评教' 的记录；"
                 + "课程平均分 = 该课程全部学生评教分数平均值（保留 1 位小数）；"
                 + "总体平均分按参评人次加权计算。");

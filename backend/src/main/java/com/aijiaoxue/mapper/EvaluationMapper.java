@@ -51,6 +51,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
               <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
               <if test="scoreMin != null"> AND e.score &gt;= #{scoreMin} </if>
               <if test="scoreMax != null"> AND e.score &lt;= #{scoreMax} </if>
+              <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+              <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
               <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
               <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
             </where>
@@ -64,6 +66,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
                                                @Param("semester") String semester,
                                                @Param("scoreMin") java.math.BigDecimal scoreMin,
                                                @Param("scoreMax") java.math.BigDecimal scoreMax,
+                                               @Param("courseId") Long courseId,
+                                               @Param("filterTeacherId") Long filterTeacherId,
                                                @Param("teacherId") Long teacherId,
                                                @Param("deptCode") String deptCode);
 
@@ -80,6 +84,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
               <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
               <if test="scoreMin != null"> AND e.score &gt;= #{scoreMin} </if>
               <if test="scoreMax != null"> AND e.score &lt;= #{scoreMax} </if>
+              <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+              <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
               <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
               <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
             </where>
@@ -92,6 +98,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
                                               @Param("semester") String semester,
                                               @Param("scoreMin") java.math.BigDecimal scoreMin,
                                               @Param("scoreMax") java.math.BigDecimal scoreMax,
+                                              @Param("courseId") Long courseId,
+                                              @Param("filterTeacherId") Long filterTeacherId,
                                               @Param("teacherId") Long teacherId,
                                               @Param("deptCode") String deptCode);
 
@@ -118,6 +126,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
             LEFT JOIN teacher t ON t.id = o.teacher_id
             WHERE e.evaluation_type = '学生评教'
             <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+            <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+            <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
             <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
             <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
             GROUP BY c.id, c.course_code, c.course_name, o.teacher_id, t.name, e.semester
@@ -125,6 +135,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
             </script>
             """)
     List<EvaluationSummaryRow> selectEvaluationSummary(@Param("semester") String semester,
+                                                       @Param("courseId") Long courseId,
+                                                       @Param("filterTeacherId") Long filterTeacherId,
                                                        @Param("teacherId") Long teacherId,
                                                        @Param("deptCode") String deptCode);
 
@@ -148,6 +160,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
               LEFT JOIN offering o ON o.id = e.offering_id
               WHERE e.evaluation_type = '学生评教'
               <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+              <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+              <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
               <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
               <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
               GROUP BY bucket
@@ -156,6 +170,63 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
             </script>
             """)
     List<Map<String, Object>> selectScoreDistribution(@Param("semester") String semester,
+                                                      @Param("courseId") Long courseId,
+                                                      @Param("filterTeacherId") Long filterTeacherId,
                                                       @Param("teacherId") Long teacherId,
                                                       @Param("deptCode") String deptCode);
+
+    /**
+     * 学生评教学期趋势：按学期聚合平均分与参评人次，用于前端趋势折线图。
+     * 口径与汇总一致（仅学生评教）；不做学期过滤（趋势本身即按学期展开）。
+     *
+     * @return 每条记录含 semester / avg_score / evaluation_count
+     */
+    @Select("""
+            <script>
+            SELECT e.semester AS semester, ROUND(AVG(e.score), 1) AS avg_score,
+                   COUNT(1) AS evaluation_count
+            FROM evaluation e
+            LEFT JOIN offering o ON o.id = e.offering_id
+            WHERE e.evaluation_type = '学生评教'
+            <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+            <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
+            <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
+            <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
+            GROUP BY e.semester
+            ORDER BY e.semester ASC
+            </script>
+            """)
+    List<Map<String, Object>> selectEvaluationTrend(@Param("courseId") Long courseId,
+                                                    @Param("filterTeacherId") Long filterTeacherId,
+                                                    @Param("teacherId") Long teacherId,
+                                                    @Param("deptCode") String deptCode);
+
+    /**
+     * 学生评教教师维度对比：按授课教师聚合平均分与参评人次，供主任/督导跨教师对比。
+     * 口径与汇总一致（仅学生评教），受学期/课程/教师筛选与数据范围约束。
+     *
+     * @return 每条记录含 teacher_id / teacher_name / avg_score / evaluation_count
+     */
+    @Select("""
+            <script>
+            SELECT o.teacher_id AS teacher_id, t.name AS teacher_name,
+                   ROUND(AVG(e.score), 1) AS avg_score, COUNT(1) AS evaluation_count
+            FROM evaluation e
+            LEFT JOIN offering o ON o.id = e.offering_id
+            LEFT JOIN teacher t ON t.id = o.teacher_id
+            WHERE e.evaluation_type = '学生评教'
+            <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+            <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+            <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
+            <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
+            <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
+            GROUP BY o.teacher_id, t.name
+            ORDER BY avg_score DESC
+            </script>
+            """)
+    List<Map<String, Object>> selectEvaluationByTeacher(@Param("semester") String semester,
+                                                        @Param("courseId") Long courseId,
+                                                        @Param("filterTeacherId") Long filterTeacherId,
+                                                        @Param("teacherId") Long teacherId,
+                                                        @Param("deptCode") String deptCode);
 }

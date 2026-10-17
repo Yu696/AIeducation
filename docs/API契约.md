@@ -141,10 +141,10 @@
 
 | 方法 | 路径 | 权限码 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/evaluations` | `evaluation:read` | 分页；教师角色强制只看本人；筛选 `offeringId/type/semester/scoreMin/scoreMax/page/size` |
-| GET | `/api/evaluations/summary` | `evaluation:read` | 学生评教汇总：按课程聚合平均分、参评人次、分数分布 |
+| GET | `/api/evaluations` | `evaluation:read` | 分页；教师角色强制只看本人；筛选 `offeringId/type/semester/scoreMin/scoreMax/courseId/teacherId/page/size` |
+| GET | `/api/evaluations/summary` | `evaluation:read` | 学生评教汇总：按课程聚合平均分、参评人次、分数分布；筛选 `semester/courseId/teacherId`；返回 `summary[]`、`distribution[]`、`trend[]`、`byTeacher[]`、`overallAvgScore`、`totalEvaluations`、`caliber` |
 | GET | `/api/evaluations/{id}` | `evaluation:read` | 评价详情 |
-| GET | `/api/evaluations/export` | `evaluation:read` | 导出 CSV |
+| GET | `/api/evaluations/export` | `evaluation:read` | 导出 CSV（筛选参数与列表一致，口径与页面一致） |
 
 ## 7. 督导与听评课（US-04）
 

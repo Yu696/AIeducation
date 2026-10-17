@@ -48,16 +48,20 @@ public class EvaluationController {
             @RequestParam(required = false) String evaluationType,
             @RequestParam(required = false) String semester,
             @RequestParam(required = false) BigDecimal scoreMin,
-            @RequestParam(required = false) BigDecimal scoreMax) {
+            @RequestParam(required = false) BigDecimal scoreMax,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long teacherId) {
         return ApiResponse.ok(evaluationService.page(page, size, keyword, offeringId, evaluationType,
-                semester, scoreMin, scoreMax, CurrentUserHolder.require()));
+                semester, scoreMin, scoreMax, courseId, teacherId, CurrentUserHolder.require()));
     }
 
-    /** 学生评教汇总 + 分数分布（含计算口径说明） */
+    /** 学生评教汇总 + 分数分布 + 学期趋势 + 教师维度（US-09 分析视图，含计算口径说明） */
     @GetMapping("/summary")
     @PreAuthorize("hasAuthority('" + PermissionCodes.EVALUATION_READ + "')")
-    public ApiResponse<Map<String, Object>> summary(@RequestParam(required = false) String semester) {
-        return ApiResponse.ok(evaluationService.summary(semester, CurrentUserHolder.require()));
+    public ApiResponse<Map<String, Object>> summary(@RequestParam(required = false) String semester,
+                                                    @RequestParam(required = false) Long courseId,
+                                                    @RequestParam(required = false) Long teacherId) {
+        return ApiResponse.ok(evaluationService.summary(semester, courseId, teacherId, CurrentUserHolder.require()));
     }
 
     /** 评价详情 */
@@ -77,9 +81,11 @@ public class EvaluationController {
                        @RequestParam(required = false) String semester,
                        @RequestParam(required = false) BigDecimal scoreMin,
                        @RequestParam(required = false) BigDecimal scoreMax,
+                       @RequestParam(required = false) Long courseId,
+                       @RequestParam(required = false) Long teacherId,
                        HttpServletResponse response) throws IOException {
         List<EvaluationView> list = evaluationService.listForExport(keyword, offeringId, evaluationType,
-                semester, scoreMin, scoreMax, CurrentUserHolder.require());
+                semester, scoreMin, scoreMax, courseId, teacherId, CurrentUserHolder.require());
         List<List<String>> rows = new ArrayList<>();
         for (EvaluationView e : list) {
             List<String> row = new ArrayList<>();
