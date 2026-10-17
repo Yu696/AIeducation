@@ -5,9 +5,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -130,6 +133,242 @@ class ResourceAndEvaluationIT extends BaseIntegrationTest {
         mockMvc.perform(get("/api/courses/1").header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.course.resourceCount").value(2));
+    }
+
+    // ---------------- US-07 教学资源挂接与维护闭环 ----------------
+
+    @Test
+    @DisplayName("TC-US07-01 课程资源接口只返回已挂接资源，并带教学班名称")
+    void courseResourcesOnlyAssociated() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(get("/api/courses/1/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].className").value("软件2201班"));
+
+        // 课程 2 的基线下只有资源 3 已挂接；资源 6 为软解绑（associated=0），不得返回
+        mockMvc.perform(get("/api/courses/2/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(3));
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-02 重复挂接幂等：不新增行、列表不重复")
+    void attachIsIdempotent() throws Exception {
+        String token = login("admin");
+        String body = "{\"resourceId\":5}";
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/api/courses/1/resources")
+                            .header("Authorization", bearer(token))
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+        mockMvc.perform(get("/api/courses/1/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(3));
+        Integer rows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM course_resource WHERE course_id = 1 AND resource_id = 5", Integer.class);
+        assertEquals(1, rows, "重复挂接不应新增 course_resource 行");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-03 软解绑：课程/资源详情不再返回，挂接行保留且 associated=0")
+    void detachIsSoftDelete() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(delete("/api/courses/1/resources/1").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        mockMvc.perform(get("/api/courses/1/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(2));
+
+        Integer associated = jdbcTemplate.queryForObject(
+                "SELECT associated FROM course_resource WHERE course_id = 1 AND resource_id = 1", Integer.class);
+        assertEquals(0, associated, "解绑应保留挂接行并置 associated=0");
+        // 资源本身不被删除，仍可在资源管理中查看
+        mockMvc.perform(get("/api/resources/1").header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-04 解绑后可重新挂接：复用原行，不新增记录")
+    void reattachAfterDetach() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(delete("/api/courses/1/resources/1").header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/courses/1/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":1}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/courses/1/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
+        Integer rows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM course_resource WHERE course_id = 1 AND resource_id = 1", Integer.class);
+        Integer associated = jdbcTemplate.queryForObject(
+                "SELECT associated FROM course_resource WHERE course_id = 1 AND resource_id = 1", Integer.class);
+        assertEquals(1, rows);
+        assertEquals(1, associated);
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-05 对已解绑资源再次解绑幂等返回成功")
+    void detachTwiceIsIdempotent() throws Exception {
+        String token = login("admin");
+        // 资源 6 在基线中已是 associated=0
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(delete("/api/courses/2/resources/6").header("Authorization", bearer(token)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+    }
+
+    @Test
+    @DisplayName("TC-US07-06 挂接参数与对象不存在时返回 400/404")
+    void attachValidatesParams() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(post("/api/courses/1/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("资源ID不能为空"));
+
+        mockMvc.perform(post("/api/courses/999/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":1}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("课程不存在"));
+
+        mockMvc.perform(post("/api/courses/1/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":999}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("教学资源不存在"));
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-07 挂接/解绑写入操作日志：COURSE_RESOURCE + 资源ID")
+    void attachWritesAuditLog() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(post("/api/courses/1/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":5}"))
+                .andExpect(status().isOk());
+
+        String action = jdbcTemplate.queryForObject(
+                "SELECT action FROM sys_audit_log WHERE target_type = 'COURSE_RESOURCE' "
+                        + "ORDER BY id DESC LIMIT 1", String.class);
+        String targetId = jdbcTemplate.queryForObject(
+                "SELECT target_id FROM sys_audit_log WHERE target_type = 'COURSE_RESOURCE' "
+                        + "ORDER BY id DESC LIMIT 1", String.class);
+        String detail = jdbcTemplate.queryForObject(
+                "SELECT detail FROM sys_audit_log WHERE target_type = 'COURSE_RESOURCE' "
+                        + "ORDER BY id DESC LIMIT 1", String.class);
+        assertEquals("挂接资源", action);
+        assertEquals("1", targetId);
+        assertTrue(detail != null && detail.contains("5"), "审计详情应包含资源ID");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-08 解绑后备课查看不可见，重新挂接后恢复")
+    void detachRemovesFromPrepView() throws Exception {
+        String token = login("teacher1");
+        mockMvc.perform(delete("/api/courses/2/resources/3").header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/resources/prep").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalResources").value(3))
+                .andExpect(jsonPath("$.data.groupCount").value(2));
+
+        mockMvc.perform(post("/api/courses/2/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":3}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/resources/prep").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalResources").value(4))
+                .andExpect(jsonPath("$.data.groupCount").value(3));
+    }
+
+    @Test
+    @DisplayName("TC-US07-09 教师越权挂接返回 403")
+    void teacherCannotAttachOutOfScope() throws Exception {
+        String token = login("teacher1");
+        // 资源 5 属于数学学院教师，teacher1 不可见
+        mockMvc.perform(post("/api/courses/1/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":5}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        // 课程 4 不属于 teacher1
+        mockMvc.perform(post("/api/courses/4/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceId\":1}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-10 教师资源可见范围与 owner-only 维护约束")
+    void teacherResourceOwnership() throws Exception {
+        String token = login("teacher1");
+        // 资源 5 不在本人可见范围
+        mockMvc.perform(get("/api/resources/5").header("Authorization", bearer(token)))
+                .andExpect(status().isForbidden());
+        // 资源 4 属合上教学班，可查看
+        mockMvc.perform(get("/api/resources/4").header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+        // 但不可修改、不可删除他人资源
+        mockMvc.perform(put("/api/resources/4")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceName\":\"越权修改\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/resources/4").header("Authorization", bearer(token)))
+                .andExpect(status().isForbidden());
+        // 本人资源可修改
+        mockMvc.perform(put("/api/resources/1")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceName\":\"程序设计基础-第1章课件（更新）\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US07-11 教师新建资源强制归属本人，忽略请求体 teacherId")
+    void teacherCreateForcesOwnership() throws Exception {
+        String token = login("teacher1");
+        mockMvc.perform(post("/api/resources")
+                        .header("Authorization", bearer(token))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"resourceName\":\"教师自建资源\",\"resourceType\":\"课件\","
+                                + "\"fileUrl\":\"/files/self.pdf\",\"teacherId\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.teacherId").value(1));
     }
 
     // ---------------- 教学评价（史诗三） ----------------

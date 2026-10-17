@@ -1,0 +1,113 @@
+Picked up JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------< com.aijiaoxue:aijiaoxue-backend >-------------------
+[INFO] Building aijiaoxue-backend 1.0.0-Sprint1
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ aijiaoxue-backend ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ aijiaoxue-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ aijiaoxue-backend ---
+[INFO] Copying 5 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ aijiaoxue-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.5:test (default-test) @ aijiaoxue-backend ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+Picked up JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8
+[INFO] Running com.aijiaoxue.auth.AuthAndPermissionIT
+17:27:24.277 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.aijiaoxue.auth.AuthAndPermissionIT]: AuthAndPermissionIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+17:27:24.457 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.aijiaoxue.AijiaoxueApplication for test class com.aijiaoxue.auth.AuthAndPermissionIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.2)
+
+2026-10-17T17:27:25.083+08:00  INFO 17652 --- [aijiaoxue-backend] [           main] com.aijiaoxue.auth.AuthAndPermissionIT   : Starting AuthAndPermissionIT using Java 23.0.2 with PID 17652 (started by 84414 in C:\Users\84414\Desktop\softwareManage\code\AIeducation\backend)
+2026-10-17T17:27:25.083+08:00  INFO 17652 --- [aijiaoxue-backend] [           main] com.aijiaoxue.auth.AuthAndPermissionIT   : The following 1 profile is active: "test"
+2026-10-17T17:27:30.091+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 234d9598-f3e8-4b56-8110-df75e4f10a27
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-10-17T17:27:30.715+08:00  INFO 17652 --- [aijiaoxue-backend] [           main] com.aijiaoxue.config.WebMvcConfig        : 前端静态资源目录已挂载：file:///C:/Users/84414/Desktop/softwareManage/code/AIeducation/frontend/
+2026-10-17T17:27:31.618+08:00  INFO 17652 --- [aijiaoxue-backend] [           main] com.aijiaoxue.auth.AuthAndPermissionIT   : Started AuthAndPermissionIT in 6.978 seconds (process running for 8.305)
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build what is described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (C:\Users\84414\.m2\repository\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.357 s -- in com.aijiaoxue.auth.AuthAndPermissionIT
+[INFO] Running com.aijiaoxue.auth.DataScopeIT
+2026-10-17T17:27:34.229+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能访问本人档案数据
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.943 s -- in com.aijiaoxue.auth.DataScopeIT
+[INFO] Running com.aijiaoxue.auth.PermissionAccessControlIT
+2026-10-17T17:27:34.522+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=未登记的权限码：not-exist:perm
+2026-10-17T17:27:34.663+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:34.806+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:35.104+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:35.242+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:35.372+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:35.826+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:36.105+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:36.240+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+2026-10-17T17:27:36.384+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 越权访问被拦截: Access Denied
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.190 s -- in com.aijiaoxue.auth.PermissionAccessControlIT
+[INFO] Running com.aijiaoxue.us.CourseQueryIT
+2026-10-17T17:27:36.738+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=409 message=该课程已存在 2 条开课记录，不允许删除
+2026-10-17T17:27:37.563+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能查看本人所授课程的资源
+2026-10-17T17:27:37.870+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=409 message=课程编号已存在：CS900
+2026-10-17T17:27:38.044+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=404 message=课程不存在
+2026-10-17T17:27:38.127+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=404 message=课程不存在
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.572 s -- in com.aijiaoxue.us.CourseQueryIT
+[INFO] Running com.aijiaoxue.us.CoverageAndDashboardIT
+2026-10-17T17:27:38.586+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=请选择要听课的教学班
+2026-10-17T17:27:38.595+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=请选择督导教师
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.441 s -- in com.aijiaoxue.us.CoverageAndDashboardIT
+[INFO] Running com.aijiaoxue.us.OfferingAndDataIT
+2026-10-17T17:27:39.667+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=请选择开课课程
+2026-10-17T17:27:39.744+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=CSV 文件中没有可导入的数据行
+2026-10-17T17:27:39.917+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=409 message=教学班编号已存在：OFF-2025-1-CS101-01
+2026-10-17T17:27:40.520+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能访问本人所授教学班的数据
+2026-10-17T17:27:41.188+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=404 message=教学班不存在
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.624 s -- in com.aijiaoxue.us.OfferingAndDataIT
+[INFO] Running com.aijiaoxue.us.ResourceAndEvaluationIT
+2026-10-17T17:27:41.706+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=资源名称不能为空
+2026-10-17T17:27:42.699+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=400 message=资源ID不能为空
+2026-10-17T17:27:42.701+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=404 message=课程不存在
+2026-10-17T17:27:42.706+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=404 message=教学资源不存在
+2026-10-17T17:27:42.944+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能查看本人可见范围内的教学资源
+2026-10-17T17:27:42.951+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能修改本人上传的教学资源
+2026-10-17T17:27:42.952+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能删除本人上传的教学资源
+2026-10-17T17:27:43.923+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=当前账号未绑定教师档案，无法查看个人教学数据
+2026-10-17T17:27:44.152+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能挂接本人可见范围内的教学资源
+2026-10-17T17:27:44.161+08:00  WARN 17652 --- [aijiaoxue-backend] [           main] c.a.common.GlobalExceptionHandler        : 业务异常 code=403 message=教师只能向本人所授课程挂接资源
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.211 s -- in com.aijiaoxue.us.ResourceAndEvaluationIT
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 94, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  24.132 s
+[INFO] Finished at: 2026-10-17T17:27:44+08:00
+[INFO] ------------------------------------------------------------------------

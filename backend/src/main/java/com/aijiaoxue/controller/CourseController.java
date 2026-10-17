@@ -8,6 +8,7 @@ import com.aijiaoxue.dto.ImportResult;
 import com.aijiaoxue.entity.Course;
 import com.aijiaoxue.entity.view.CourseDetailView;
 import com.aijiaoxue.entity.view.OfferingView;
+import com.aijiaoxue.entity.view.ResourceView;
 import com.aijiaoxue.security.CurrentUser;
 import com.aijiaoxue.security.CurrentUserHolder;
 import com.aijiaoxue.security.PermissionCodes;
@@ -112,12 +113,19 @@ public class CourseController {
         return ApiResponse.ok(courseService.offeringsOf(id, CurrentUserHolder.require()));
     }
 
+    /** 该课程已挂接的资源列表（US-07）；与课程详情同权限码，COURSE_ADMIN 也可读取 */
+    @GetMapping("/{id}/resources")
+    @PreAuthorize("hasAuthority('" + PermissionCodes.COURSE_READ + "')")
+    public ApiResponse<List<ResourceView>> resources(@PathVariable Long id) {
+        return ApiResponse.ok(courseService.resourcesOf(id, CurrentUserHolder.require()));
+    }
+
     /** 挂接教学资源到课程 */
     @PostMapping("/{id}/resources")
     @PreAuthorize("hasAuthority('" + PermissionCodes.RESOURCE_WRITE + "')")
     @AuditLog(action = "挂接资源", targetType = "COURSE_RESOURCE", idParamIndex = 0)
     public ApiResponse<Void> attachResource(@PathVariable Long id, @RequestBody Map<String, Long> body) {
-        courseService.attachResource(id, body.get("resourceId"));
+        courseService.attachResource(id, body.get("resourceId"), CurrentUserHolder.require());
         return ApiResponse.ok();
     }
 
@@ -126,7 +134,7 @@ public class CourseController {
     @PreAuthorize("hasAuthority('" + PermissionCodes.RESOURCE_WRITE + "')")
     @AuditLog(action = "解除挂接", targetType = "COURSE_RESOURCE", idParamIndex = 0)
     public ApiResponse<Void> detachResource(@PathVariable Long id, @PathVariable Long resourceId) {
-        courseService.detachResource(id, resourceId);
+        courseService.detachResource(id, resourceId, CurrentUserHolder.require());
         return ApiResponse.ok();
     }
 

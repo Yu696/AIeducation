@@ -17,6 +17,8 @@ public class ResourceView {
     private Long fileSize;
     private Long offeringId;
     private String offeringCode;
+    /** 关联教学班名称（offering.class_name），未关联教学班时为 null */
+    private String className;
     private Long courseId;
     private String courseCode;
     private String courseName;

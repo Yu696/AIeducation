@@ -23,10 +23,20 @@
   var UI = AJ.UI;
   var util = AJ.util;
 
-  /** 资源类型候选值 */
-  var TYPES = ['课件', '讲义', '视频', '习题', '案例', '参考文献', '实验指导', '其他'];
-  /** 资源状态候选值 */
-  var STATUSES = ['已关联', '未关联', '已归档'];
+  /** 资源类型候选值（与后端 ResourceService.resourceTypes 保持一致） */
+  var TYPES = ['课件', '教案', '视频', '习题', '参考文献'];
+  /** 资源状态候选值（与 teaching_resource.status 保持一致） */
+  var STATUSES = ['有效', '待审核', '失效'];
+
+  /**
+   * 路由竞态守卫（模块级入口）。
+   *
+   * <p>详情抽屉在 render 作用域之外发起请求，必须按调用时令牌重新取 guard；
+   * 原实现直接引用 render 内局部变量，导致详情抽屉抛 ReferenceError。
+   */
+  function guardTask(fn) {
+    return AJ.Router.guard()(fn);
+  }
 
   function asArray(res) {
     if (!res) { return []; }
@@ -72,8 +82,8 @@
       '</select></div>' +
 
       '<div class="form-item"><label class="form-label">资源地址 URL<span class="req">*</span></label>' +
-      '<input class="input" name="url" maxlength="512" placeholder="如 https://example.com/course/ppt03.pptx" value="' +
-      util.escape(util.pick(resource, ['url', 'fileUrl', 'link'], '')) + '"></div>' +
+      '<input class="input" name="fileUrl" maxlength="512" placeholder="如 https://example.com/course/ppt03.pptx" value="' +
+      util.escape(util.pick(resource, ['fileUrl', 'url', 'link'], '')) + '"></div>' +
 
       '<div class="form-item"><label class="form-label">资源状态</label>' +
       '<select class="select" name="status">' +
@@ -106,7 +116,7 @@
   function validate(values) {
     if (!String(values.resourceName || '').trim()) { return '请填写资源名称'; }
     if (!String(values.resourceType || '').trim()) { return '请选择资源类型'; }
-    var url = String(values.url || '').trim();
+    var url = String(values.fileUrl || '').trim();
     if (!url) { return '请填写资源地址 URL'; }
     if (url.length > 512) { return '资源地址过长（不超过 512 字符）'; }
     return null;
@@ -116,7 +126,7 @@
     var payload = {
       resourceName: String(values.resourceName || '').trim(),
       resourceType: String(values.resourceType || '').trim(),
-      url: String(values.url || '').trim()
+      fileUrl: String(values.fileUrl || '').trim()
     };
     if (values.status) { payload.status = values.status; }
     if (values.description) { payload.description = values.description; }
@@ -178,7 +188,7 @@
     });
 
     Api.get('/resources/' + encodeURIComponent(id))
-      .then(guard(function (r) {
+      .then(guardTask(function (r) {
         d.body.innerHTML = '';
         if (!r) {
           d.body.appendChild(UI.emptyStateEl('资源不存在', '该资源可能已被删除'));
@@ -186,7 +196,7 @@
         }
         var name = util.pick(r, ['resourceName', 'name'], '未命名资源');
         d.el.querySelector('.drawer-title').textContent = '资源详情 · ' + name;
-        var url = util.pick(r, ['url', 'fileUrl', 'link'], '');
+        var url = util.pick(r, ['fileUrl', 'url', 'link'], '');
 
         d.body.appendChild(UI.descList([
           { label: '资源名称', value: name },
@@ -240,7 +250,7 @@
           actions.appendChild(delBtn);
           d.body.appendChild(UI.descSection('操作', actions));
         }
-      }), guard(function (err) {
+      }), guardTask(function (err) {
         d.body.innerHTML = '';
         d.body.appendChild(UI.errorBox((err && err.message) || '资源详情加载失败'));
       }));
@@ -272,9 +282,28 @@
       { name: 'resourceType', label: '资源类型', type: 'select', options: TYPES, placeholder: '全部类型' },
       { name: 'status', label: '资源状态', type: 'select', options: STATUSES, placeholder: '全部状态' }
     ], {
-      onSearch: function (values) { tbl.setQuery(values); }
+      onSearch: function (values) { tbl.setQuery(values); },
+      onReset: function () {
+        // 关联教学班不在 filterBar 的 refs 内，需单独清空并合并进查询条件
+        var sel = offeringFilter ? offeringFilter.querySelector('select') : null;
+        if (sel) { sel.value = ''; }
+        if (tbl) { tbl.setQuery({ offeringId: '' }); }
+      }
     });
     container.appendChild(filters.el);
+
+    // 关联教学班筛选（选项懒加载，change 即查询）
+    var offeringFilter = UI.remoteSelect({
+      name: 'offeringId', label: '关联教学班', loader: offeringLoader, placeholder: '全部教学班'
+    });
+    offeringFilter.style.minWidth = '220px';
+    offeringFilter.querySelector('.form-label').style.fontSize = '12px';
+    offeringFilter.querySelector('.form-label').style.color = '#6b7280';
+    offeringFilter.querySelector('input').style.display = 'none';
+    offeringFilter.querySelector('select').addEventListener('change', function (e) {
+      tbl.setQuery({ offeringId: e.target.value });
+    });
+    filters.el.insertBefore(offeringFilter, filters.el.querySelector('.filter-actions'));
 
     // 表格
     var tbl = UI.table({
@@ -296,7 +325,7 @@
           render: function (v, row) {
             var parts = [
               util.pick(row, ['courseName', 'courseCode'], ''),
-              util.pick(row, ['className'], ''),
+              util.pick(row, ['className', 'offeringCode'], ''),
               util.pick(row, ['semester'], '')
             ].filter(function (x) { return !!x; });
             return parts.length ? parts.join(' · ') : '未关联';
@@ -319,7 +348,7 @@
         {
           title: '链接', key: 'url', width: '70px', align: 'center', raw: true,
           render: function (v, row) {
-            var u = util.pick(row, ['url', 'fileUrl', 'link'], '');
+            var u = util.pick(row, ['fileUrl', 'url', 'link'], '');
             return u
               ? '<a href="' + util.escape(u) + '" target="_blank" rel="noopener noreferrer">打开</a>'
               : '—';
