@@ -204,4 +204,23 @@ class CourseQueryIT extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].courseCode").value("MA201"));
     }
+
+    @Test
+    @DisplayName("TC-US07-12 不存在的课程查询挂接资源返回 404")
+    void resourcesOfMissingCourse() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(get("/api/courses/999/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404))
+                .andExpect(jsonPath("$.message").value("课程不存在"));
+    }
+
+    @Test
+    @DisplayName("TC-US07-13 教师查询非本人课程的挂接资源返回 403")
+    void teacherCannotReadOtherCourseResources() throws Exception {
+        String token = login("teacher1");
+        mockMvc.perform(get("/api/courses/4/resources").header("Authorization", bearer(token)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
 }

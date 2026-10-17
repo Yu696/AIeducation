@@ -2,13 +2,11 @@ package com.aijiaoxue.service;
 
 import com.aijiaoxue.common.BusinessException;
 import com.aijiaoxue.common.PageResult;
-import com.aijiaoxue.entity.Course;
 import com.aijiaoxue.entity.CourseResource;
 import com.aijiaoxue.entity.Offering;
 import com.aijiaoxue.entity.TeachingResource;
 import com.aijiaoxue.entity.view.OfferingView;
 import com.aijiaoxue.entity.view.ResourceView;
-import com.aijiaoxue.mapper.CourseMapper;
 import com.aijiaoxue.mapper.CourseResourceMapper;
 import com.aijiaoxue.mapper.OfferingMapper;
 import com.aijiaoxue.mapper.ResourceMapper;
@@ -41,17 +39,17 @@ public class ResourceService {
 
     private final ResourceMapper resourceMapper;
     private final CourseResourceMapper courseResourceMapper;
-    private final CourseMapper courseMapper;
+    private final CourseService courseService;
     private final OfferingMapper offeringMapper;
     private final TeacherMapper teacherMapper;
     private final DataScopeService dataScopeService;
 
     public ResourceService(ResourceMapper resourceMapper, CourseResourceMapper courseResourceMapper,
-                           CourseMapper courseMapper, OfferingMapper offeringMapper,
+                           CourseService courseService, OfferingMapper offeringMapper,
                            TeacherMapper teacherMapper, DataScopeService dataScopeService) {
         this.resourceMapper = resourceMapper;
         this.courseResourceMapper = courseResourceMapper;
-        this.courseMapper = courseMapper;
+        this.courseService = courseService;
         this.offeringMapper = offeringMapper;
         this.teacherMapper = teacherMapper;
         this.dataScopeService = dataScopeService;
@@ -76,11 +74,20 @@ public class ResourceService {
         return resourceMapper.selectResourceList(keyword, resourceType, status, offeringId, effTeacher, effDept);
     }
 
-    /** 资源详情 */
-    public ResourceView detail(Long id) {
+    /**
+     * 资源详情（US-07）。
+     *
+     * <p>TEACHER 仅能查看本人上传的资源，或本人任课/合上教学班下的资源；
+     * 修改与删除另按「仅本人上传」收紧，见 {@link #update} / {@link #delete}。
+     */
+    public ResourceView detail(Long id, CurrentUser user) {
         ResourceView view = resourceMapper.selectResourceDetail(id);
         if (view == null) {
             throw BusinessException.notFound("教学资源不存在");
+        }
+        Long selfTeacherId = dataScopeService.teacherScope(user);
+        if (selfTeacherId != null && resourceMapper.countVisibleToTeacher(id, selfTeacherId) == 0) {
+            throw BusinessException.forbidden("教师只能查看本人可见范围内的教学资源");
         }
         return view;
     }
@@ -203,23 +210,24 @@ public class ResourceService {
         return g;
     }
 
-    /** 某课程已挂接的资源 */
-    public List<ResourceView> byCourse(Long courseId) {
-        if (courseMapper.selectById(courseId) == null) {
-            throw BusinessException.notFound("课程不存在");
-        }
-        return resourceMapper.selectResourcesByCourse(courseId);
+    /** 某课程已挂接的资源（复用课程数据范围校验） */
+    public List<ResourceView> byCourse(Long courseId, CurrentUser user) {
+        return courseService.resourcesOf(courseId, user);
     }
 
-    /** 新建资源 */
+    /**
+     * 新建资源。
+     *
+     * <p>TEACHER 的 {@code teacherId} 一律强制为本人，忽略请求体，防止伪造归属。
+     */
     @Transactional(rollbackFor = Exception.class)
     public TeachingResource create(TeachingResource resource, CurrentUser user) {
+        // 先强制归属，再校验：教师请求体中的 teacherId 一律不生效
+        if (user.isTeacher()) {
+            resource.setTeacherId(user.requireTeacherId());
+        }
         validate(resource);
         resource.setId(null);
-        // 教师创建资源时，若未指定归属教师则自动绑定为本人，保证数据范围可追溯
-        if (resource.getTeacherId() == null && user.getTeacherId() != null) {
-            resource.setTeacherId(user.getTeacherId());
-        }
         if (resource.getStatus() == null || resource.getStatus().isBlank()) {
             resource.setStatus("有效");
         }
@@ -229,11 +237,23 @@ public class ResourceService {
         return resource;
     }
 
-    /** 修改资源 */
+    /**
+     * 修改资源。
+     *
+     * <p>TEACHER 仅能修改本人上传的资源（owner-only），并冻结 {@code teacherId}，
+     * 禁止通过请求体把资源转移给他人。
+     */
     @Transactional(rollbackFor = Exception.class)
-    public TeachingResource update(Long id, TeachingResource resource) {
-        if (resourceMapper.selectById(id) == null) {
+    public TeachingResource update(Long id, TeachingResource resource, CurrentUser user) {
+        TeachingResource exist = resourceMapper.selectById(id);
+        if (exist == null) {
             throw BusinessException.notFound("教学资源不存在");
+        }
+        if (user.isTeacher()) {
+            if (!user.requireTeacherId().equals(exist.getTeacherId())) {
+                throw BusinessException.forbidden("教师只能修改本人上传的教学资源");
+            }
+            resource.setTeacherId(exist.getTeacherId());
         }
         resource.setId(id);
         resource.setUpdatedAt(LocalDateTime.now());
@@ -241,11 +261,19 @@ public class ResourceService {
         return resourceMapper.selectById(id);
     }
 
-    /** 删除资源，同时清理课程挂接关系 */
+    /**
+     * 删除资源，同时清理课程挂接关系。
+     *
+     * <p>TEACHER 仅能删除本人上传的资源（owner-only）。
+     */
     @Transactional(rollbackFor = Exception.class)
-    public void delete(Long id) {
-        if (resourceMapper.selectById(id) == null) {
+    public void delete(Long id, CurrentUser user) {
+        TeachingResource exist = resourceMapper.selectById(id);
+        if (exist == null) {
             throw BusinessException.notFound("教学资源不存在");
+        }
+        if (user.isTeacher() && !user.requireTeacherId().equals(exist.getTeacherId())) {
+            throw BusinessException.forbidden("教师只能删除本人上传的教学资源");
         }
         courseResourceMapper.delete(Wrappers.<CourseResource>lambdaQuery()
                 .eq(CourseResource::getResourceId, id));

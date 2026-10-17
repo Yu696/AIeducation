@@ -22,7 +22,8 @@ public interface ResourceMapper extends BaseMapper<TeachingResource> {
     /** 资源公共查询片段：资源 + 归属教师 + 关联教学班 + 所属课程 */
     String VIEW_SQL = """
             SELECT r.id, r.resource_name, r.resource_type, r.file_url, r.file_size,
-                   r.offering_id, o.offering_code, o.course_id, c.course_code, c.course_name, o.semester,
+                   r.offering_id, o.offering_code, o.class_name, o.course_id,
+                   c.course_code, c.course_name, o.semester,
                    r.teacher_id, t.name AS teacher_name, r.description, r.status, r.created_at
             FROM teaching_resource r
             LEFT JOIN offering o ON o.id = r.offering_id
@@ -131,7 +132,30 @@ public interface ResourceMapper extends BaseMapper<TeachingResource> {
                                 AND (o4.teacher_id = #{teacherId}
                                      OR EXISTS (SELECT 1 FROM offering_teacher ot
                                                 WHERE ot.offering_id = o4.id AND ot.teacher_id = #{teacherId}))))
+              AND (r.offering_id IS NULL
+                   OR EXISTS (SELECT 1 FROM course_resource cr
+                              WHERE cr.resource_id = r.id
+                                AND cr.course_id = o.course_id
+                                AND cr.associated = 1))
             ORDER BY o.semester DESC, c.course_code ASC, r.resource_type ASC
             """)
     List<ResourceView> selectPrepResources(@Param("teacherId") Long teacherId);
+
+    /**
+     * 统计某资源是否在教师可见范围内（US-07 数据权限）。
+     *
+     * <p>可见口径与资源列表一致：资源归属本人，或资源所属教学班的任课/合上教师包含本人。
+     * 用于详情查看；修改、删除另按「仅本人上传」校验。
+     */
+    @Select("""
+            SELECT COUNT(1) FROM teaching_resource r
+            WHERE r.id = #{resourceId}
+              AND (r.teacher_id = #{teacherId}
+                   OR EXISTS (SELECT 1 FROM offering o
+                              WHERE o.id = r.offering_id
+                                AND (o.teacher_id = #{teacherId}
+                                     OR EXISTS (SELECT 1 FROM offering_teacher ot
+                                                WHERE ot.offering_id = o.id AND ot.teacher_id = #{teacherId}))))
+            """)
+    long countVisibleToTeacher(@Param("resourceId") Long resourceId, @Param("teacherId") Long teacherId);
 }

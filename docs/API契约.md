@@ -1,7 +1,9 @@
-# 爱教学 Sprint 1 / Sprint 2 · 接口契约
+# 爱教学 Sprint 1 / Sprint 2 · 接口契约（冻结点：计划会开场 10 分钟）
 
-> 本文件在 Sprint 1 **接口冻结基线**（v1.0，计划会开场 10 分钟冻结）之上，追加 Sprint 2 v1.2 增量：
-> 听评课状态机、督导候选教师接口、待督导清单状态字段、备课查看统计字段。
+> 本文件是 Sprint 1 的**接口冻结基线**。Sprint 2 在 v1.1 基础上增量补充：
+> ① US-07 教学资源挂接与维护闭环（不改变 Sprint 1 已冻结接口的入参、出参与权限码）；
+> ② US-08 备课查看统计字段；
+> ③ US-10 听评课状态机、督导候选教师接口与待督导清单状态字段。
 > 前后端、AI 编码智能体一律以此为准，禁止无契约并行开发（见表7改进措施第2条）。
 
 ## 0. 通用约定
@@ -64,15 +66,33 @@
 | 方法 | 路径 | 权限码 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/api/courses` | `course:read` | 分页；筛选 `keyword/departmentCode/courseType/status/page/size` |
-| GET | `/api/courses/{id}` | `course:read` | 详情（含课程简介全文、授课教师、教学班数） |
+| GET | `/api/courses/{id}` | `course:read` | 详情，`data` 为 `{course, offerings, resources}`：课程对象、教学班列表、**已挂接资源列表**（仅 `associated=1`） |
 | POST | `/api/courses` | `course:write` | 新建；`courseCode` 唯一，重复返回 409 |
 | PUT | `/api/courses/{id}` | `course:write` | 修改 |
 | DELETE | `/api/courses/{id}` | `course:write` | 删除；已开课则返回 409 |
 | GET | `/api/courses/{id}/offerings` | `offering:read` | 该课程的全部开课记录 |
-| POST | `/api/courses/{id}/resources` | `resource:write` | 挂接资源 `{resourceId}` |
-| DELETE | `/api/courses/{id}/resources/{resourceId}` | `resource:write` | 解除挂接（标记未关联） |
+| GET | `/api/courses/{id}/resources` | `course:read` | **US-07 新增**：该课程已挂接资源列表（数组，仅 `associated=1`）。与课程详情同权限码，避免 `COURSE_ADMIN` 访问课程详情时 403 |
+| POST | `/api/courses/{id}/resources` | `resource:write` | 挂接资源 `{resourceId}`；幂等，重复挂接返回 200 且不新增行 |
+| DELETE | `/api/courses/{id}/resources/{resourceId}` | `resource:write` | 解除挂接（软解绑，`associated` 置 0）；已解绑再次解绑返回 200 |
 | GET | `/api/courses/export` | `course:read` | 导出 CSV |
 | POST | `/api/courses/import` | `course:write` | 批量导入 CSV（US-05 数据导入） |
+
+**US-07 挂接 / 解绑语义**
+
+| 场景 | 行为 |
+| --- | --- |
+| 首次挂接 | `course_resource` 新增一行，`associated=1`，返回 200 |
+| 重复挂接（已 `associated=1`） | 不新增行，返回 200（**幂等**） |
+| 解绑后重新挂接（已有 `associated=0` 行） | 复用原行并将 `associated` 置 1，不新增行 |
+| 解除挂接 | 保留行、`associated=0`（**软解绑**，保留历史可追溯） |
+| 对已解绑记录再次解绑 | 返回 200（幂等） |
+| 从未挂接过该资源 | 返回 404「该课程未挂接此资源」 |
+| 缺少 `resourceId` | 返回 400「资源ID不能为空」 |
+| 课程或资源不存在 | 返回 404 |
+| TEACHER 越权 | 课程不属于本人，或资源不在本人可见范围 → 403 |
+| 审计 | 挂接 / 解绑写入 `sys_audit_log`，`target_type=COURSE_RESOURCE`，`target_id=课程ID`，`detail` 含资源ID |
+
+**备课查看口径**：`GET /api/resources/prep` 按资源自身 `offering.course_id` 分组。资源须满足：`status='有效'`，且其所属教学班课程存在 `associated=1` 的挂接；`offering_id IS NULL` 的院系级公共资源保持原有行为（归入“未关联课程”）。解绑后该资源不再出现在备课视图。
 
 ## 3. 开课管理（US-02 / US-04，史诗一）
 
@@ -104,12 +124,21 @@
 | 方法 | 路径 | 权限码 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/api/resources` | `resource:read` | 分页；教师角色自动强制 `teacherId=自己`；筛选 `keyword/resourceType/status/offeringId/page/size` |
-| GET | `/api/resources/{id}` | `resource:read` | 详情 |
-| POST | `/api/resources` | `resource:write` | 新建/上传资源（记录 URL 与类型） |
-| PUT | `/api/resources/{id}` | `resource:write` | 修改 |
-| DELETE | `/api/resources/{id}` | `resource:write` | 删除 |
-| GET | `/api/resources/prep` | `resource:prep` | **备课查看**：按教师聚合"我教的课 → 可用资源"列表 |
+| GET | `/api/resources/{id}` | `resource:read` | 详情；TEACHER 仅可查看本人资源或本人任课/合上教学班的资源（否则 403） |
+| POST | `/api/resources` | `resource:write` | 新建/上传资源；字段名 `fileUrl`（资源地址）、`resourceType`、`offeringId`、`description`；TEACHER 的 `teacherId` 由后端强制为本人 |
+| PUT | `/api/resources/{id}` | `resource:write` | 修改；TEACHER 仅可修改**本人上传**的资源，`teacherId` 冻结不可转移 |
+| DELETE | `/api/resources/{id}` | `resource:write` | 删除；TEACHER 仅可删除**本人上传**的资源 |
+| GET | `/api/resources/prep` | `resource:prep` | **备课查看**：按教师聚合"我教的课 → 可用资源"列表；已解绑资源不再出现 |
 | GET | `/api/resources/export` | `resource:read` | 导出 CSV |
+
+**资源字段与枚举（与 `database/数据字典.md` 一致）**
+
+| 字段 | 说明 |
+| --- | --- |
+| `fileUrl` | 资源地址 URL，新建必填，最长 512 字符 |
+| `resourceType` | `课件 / 教案 / 视频 / 习题 / 参考文献` |
+| `status` | `有效 / 待审核 / 失效`；备课查看仅取 `有效` |
+| `className` | 资源列表/详情返回其关联教学班名称（`offering.class_name`），未关联教学班时为 `null` |
 
 **备课查看返回结构（Sprint 2 v1.2 增强）**：
 
@@ -135,8 +164,8 @@
 | PUT | `/api/supervisions/{id}` | `supervision:write` | 更新听评课结果 |
 | DELETE | `/api/supervisions/{id}` | `supervision:write` | 删除听评课记录 |
 | GET | `/api/supervisions/export` | `supervision:read` | 听评课明细导出 CSV（与覆盖率导出的区别：本接口导出明细记录） |
-| GET | `/api/supervisions/statuses` | `supervision:read` | 状态候选值：待安排/已安排/已完成 |
 | GET | `/api/supervisions/supervisors` | `supervision:read` | 督导候选教师（`id/name/departmentCode/departmentName`），供教学督导账号安排听评课时选择，不依赖 `user:read` |
+| GET | `/api/supervisions/statuses` | `supervision:read` | 状态候选值：待安排/已安排/已完成 |
 | GET | `/api/supervision/coverage` | `coverage:read` | **督导覆盖率**：`{totalOfferings, supervisedOfferings, coverageRate, byDepartment[], bySemester[]}` |
 | GET | `/api/supervision/coverage/pending` | `coverage:read` | 待督导教学班清单；每条增加 `supervisionStatus`（待安排/已安排），便于页面显示安排状态 |
 | GET | `/api/supervision/coverage/export` | `coverage:read` | 覆盖率导出 CSV（按院系 + 按学期两个维度） |
@@ -192,4 +221,5 @@
 | --- | --- | --- | --- |
 | v1.0 | Sprint 1 计划会 | 接口冻结，上述清单为 Sprint 1 交付范围 | 杨继鑫（DRI） |
 | v1.1 | Sprint 1 执行期 | ① 补齐听评课明细导出 `/api/supervisions/export` 与状态候选值接口；② 状态枚举统一为中文（`已完成` 等）并写明映射；③ 明确覆盖率院系归属取课程院系 | 杨继鑫（DRI） |
-| v1.2 | Sprint 2 计划会 | ① 听评课状态机与日期/评分校验；② 新增督导候选教师接口 `/api/supervisions/supervisors`；③ 待督导清单返回 `supervisionStatus`；④ 备课查看增加课程数、缺资源标记、平均资源数与资源类型统计 | 刘鹏杰（DRI）、杨继鑫 |
+| v1.2 | Sprint 2 计划会/执行期 | ① 听评课状态机与日期/评分校验；② 新增督导候选教师接口 `/api/supervisions/supervisors`；③ 待督导清单返回 `supervisionStatus`；④ 备课查看增加课程数、缺资源标记、平均资源数与资源类型统计 | 刘鹏杰（DRI）、杨继鑫 |
+| v2.0 | Sprint 2 执行期 | ① 新增 `GET /api/courses/{id}/resources`（权限 `course:read`）；② 明确 `GET /api/courses/{id}` 返回 `{course, offerings, resources}`；③ 明确挂接幂等、软解绑、重复解绑、404/400/403 语义与审计字段；④ 补资源 `fileUrl`/`className` 字段及前后端统一枚举；⑤ 明确 TEACHER 资源查看/修改/删除的数据范围与备课“解绑后不可见”口径 | 刘润七（US-07 负责人） |
