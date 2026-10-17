@@ -88,6 +88,23 @@
 
 **技术栈（沿用Sprint 1，不更换）**：Java 17 + Spring Boot 3.4.2 + MyBatis-Plus 3.5.10 + Spring Security + MySQL 8.0 + H2（测试库）+ 原生HTML/CSS/JS SPA + Maven 3.9；本轮新增GitHub Actions/本地等价CI脚本，不引入新的运行时中间件。
 
+### 表4-2 Sprint 2 代码开发分工明细（文件/模块级）
+
+| 成员 | 主责故事 | 后端代码（预计改动） | 前端代码（预计改动） | 测试/回归任务 | 代码交付要点 |
+| --- | --- | --- | --- | --- | --- |
+| 刘鹏杰 | US-10 | `SupervisionService`（状态机校验、create/update、覆盖率联动）、`SupervisionController`、`CoverageController`、`DashboardService.supervisor()` | `pages/supervision.js`（状态按钮、结果回填、安排校验）、`pages/coverage.js`（联动展示） | `CoverageAndDashboardIT`、`PermissionAccessControlIT` 新增状态流转/权限用例 | 状态流转合法、覆盖率仍为16/24=66.7%、待办清单与状态一致 |
+| 杨继鑫 | US-08、T-01 | `ResourceService.prepView()`（聚合统计、缺失标记）、`ResourceController`、`ResourceMapper` | `pages/prep.js`（统计卡片、类型筛选、空态、跳转挂接） | `ResourceAndEvaluationIT` 新增prep用例；`.github/workflows/sprint2-ci.yml`、`scripts/ci.ps1` | 备课聚合口径正确；CI/本地等价流水线可运行并阻断失败合入 |
+| 余润东 | US-09 | `EvaluationService.summary()`（趋势、教师维度、筛选）、`EvaluationController`、`EvaluationMapper` | `pages/evaluations.js`（趋势图、排序、导出参数）、`pages/dashboard.js`（评教卡片口径核对） | `ResourceAndEvaluationIT`、`CoverageAndDashboardIT` 新增评教趋势/导出/权限用例 | 汇总、趋势、导出三者口径一致；教师/主任/督导数据范围正确 |
+| 刘润七 | US-07 | `CourseService.attachResource()/detachResource()`（幂等、软解绑、审计）、`ResourceService`（列表/筛选/删除）、`CourseController`、`ResourceController` | `pages/courses.js`（资源抽屉/挂接）、`pages/resources.js`（筛选/关联教学班） | `CourseQueryIT`、`ResourceAndEvaluationIT` 新增挂接幂等/软解绑/教师隔离用例 | 挂接幂等、解绑后备课不可见、审计留痕、两页数据一致 |
+
+**代码开发纪律**：
+
+1. **只做增量**：不重写 Sprint 1 已通过回归的模块；新增/变更接口必须先写入 API 契约 v2；
+2. **数据库原则上不改表结构**：如确需新增字段/索引，由杨继鑫同步更新 `database/schema.sql`、`database/data.sql` 与 `database/数据字典.md`，并在集成前完成数据重载验证；
+3. **测试随代码提交**：每条故事至少新增/补充对应回归用例，不能只写功能不写测试；
+4. **AI生成代码必须人工审查diff**：重点看跨模块接口、权限码、数据范围、空值和软解绑逻辑；
+5. **编码时间**：55—105 min人机协同编码；105—135 min集成与全量回归；源代码作为第2项正式交付物。
+
 ---
 
 ## 表5 AI互动原始记录表
