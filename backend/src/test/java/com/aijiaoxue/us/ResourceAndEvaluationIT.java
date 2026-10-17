@@ -555,6 +555,24 @@ class ResourceAndEvaluationIT extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.teacherSummary[?(@.teacherId != 1)]").doesNotExist());
     }
 
+    @Test
+    @DisplayName("TC-US09-06 评价明细支持课程/教师下钻筛选")
+    void evaluationDetailFilters() throws Exception {
+        String token = login("admin");
+
+        // 课程 1（CS101）共有 3 条评价：学生评教 2 条 + 同行评议 1 条
+        mockMvc.perform(get("/api/evaluations").param("courseId", "1").param("size", "100")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(3));
+
+        // 教师 1（张伟）的教学班 1、2 共有 5 条评价
+        mockMvc.perform(get("/api/evaluations").param("teacherId", "1").param("size", "100")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(5));
+    }
+
     // ---------------- Sprint 2 US-08：备课查看增强 ----------------
 
     @Test

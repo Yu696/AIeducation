@@ -292,6 +292,30 @@
     });
     listCard.body.appendChild(filters.el);
 
+    // 明细列表的课程/教师下钻筛选（与后端 list/export 参数一致）
+    var detailCourseFilter = UI.remoteSelect({
+      name: 'courseId', label: '课程', loader: courseLoader, placeholder: '全部课程'
+    });
+    var detailTeacherFilter = isTeacher ? null : UI.remoteSelect({
+      name: 'teacherId', label: '授课教师', loader: teacherLoader, placeholder: '全部教师'
+    });
+    [detailCourseFilter, detailTeacherFilter].forEach(function (sel) {
+      if (!sel) { return; }
+      var input = sel.querySelector('input');
+      if (input) { input.style.display = 'none'; }
+      var label = sel.querySelector('.form-label');
+      if (label) {
+        label.style.fontSize = '12px';
+        label.style.color = '#6b7280';
+      }
+      var name = sel.querySelector('select').getAttribute('name');
+      sel.querySelector('select').addEventListener('change', function (e) {
+        if (name === 'courseId') { tbl.setQuery({ courseId: e.target.value }); }
+        else { tbl.setQuery({ teacherId: e.target.value }); }
+      });
+      filters.el.insertBefore(sel, filters.el.querySelector('.filter-actions'));
+    });
+
     var tbl = UI.table({
       columns: [
         {
@@ -581,7 +605,7 @@
   function safeQuery(tbl) {
     var q = tbl.getQuery ? tbl.getQuery() : {};
     var out = {};
-    ['evaluationType', 'semester', 'scoreMin', 'scoreMax'].forEach(function (k) {
+    ['evaluationType', 'semester', 'scoreMin', 'scoreMax', 'courseId', 'teacherId'].forEach(function (k) {
       if (q[k]) { out[k] = q[k]; }
     });
     return out;

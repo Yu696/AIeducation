@@ -52,9 +52,11 @@ public class EvaluationController {
             @RequestParam(required = false) String evaluationType,
             @RequestParam(required = false) String semester,
             @RequestParam(required = false) BigDecimal scoreMin,
-            @RequestParam(required = false) BigDecimal scoreMax) {
+            @RequestParam(required = false) BigDecimal scoreMax,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long teacherId) {
         return ApiResponse.ok(evaluationService.page(page, size, keyword, offeringId, evaluationType,
-                semester, scoreMin, scoreMax, CurrentUserHolder.require()));
+                semester, scoreMin, scoreMax, courseId, teacherId, CurrentUserHolder.require()));
     }
 
     /**
@@ -150,9 +152,11 @@ public class EvaluationController {
                        @RequestParam(required = false) String semester,
                        @RequestParam(required = false) BigDecimal scoreMin,
                        @RequestParam(required = false) BigDecimal scoreMax,
+                       @RequestParam(required = false) Long courseId,
+                       @RequestParam(required = false) Long teacherId,
                        HttpServletResponse response) throws IOException {
         List<EvaluationView> list = evaluationService.listForExport(keyword, offeringId, evaluationType,
-                semester, scoreMin, scoreMax, CurrentUserHolder.require());
+                semester, scoreMin, scoreMax, courseId, teacherId, CurrentUserHolder.require());
         List<List<String>> rows = new ArrayList<>();
         for (EvaluationView e : list) {
             List<String> row = new ArrayList<>();

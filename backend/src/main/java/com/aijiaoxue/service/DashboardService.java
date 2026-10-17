@@ -100,7 +100,7 @@ public class DashboardService {
         long resourceCount = resourceMapper.selectResourceList(null, null, null, null, null, dept).size();
 
         Map<String, Object> coverage = offeringService.coverage(null, dept, "department", user);
-        Map<String, Object> eval = evaluationService.summary(null, user);
+        Map<String, Object> eval = evaluationService.summary(null, null, null, user);
 
         List<TeacherWorkloadRow> workload = teacherService.workload(dept, null, null, user);
 
@@ -144,7 +144,7 @@ public class DashboardService {
         List<com.aijiaoxue.entity.view.ResourceView> resources =
                 resourceMapper.selectPrepResources(teacherId);
 
-        Map<String, Object> eval = evaluationService.summary(null, user);
+        Map<String, Object> eval = evaluationService.summary(null, null, null, user);
         Long evaluationCount = evaluationMapper.selectCount(Wrappers.<com.aijiaoxue.entity.Evaluation>lambdaQuery()
                 .inSql(com.aijiaoxue.entity.Evaluation::getOfferingId,
                         "SELECT id FROM offering WHERE teacher_id = " + teacherId));

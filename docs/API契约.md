@@ -151,18 +151,18 @@
 
 | 方法 | 路径 | 权限码 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/evaluations` | `evaluation:read` | 分页；教师角色强制只看本人；筛选 `offeringId/evaluationType/semester/scoreMin/scoreMax/page/size` |
+| GET | `/api/evaluations` | `evaluation:read` | 分页；教师角色强制只看本人；筛选 `offeringId/evaluationType/semester/scoreMin/scoreMax/courseId/teacherId/page/size` |
 | GET | `/api/evaluations/summary` | `evaluation:read` | **评教分析**：筛选 `semester/courseId/teacherId/evaluationType`；返回课程汇总、学期趋势、教师汇总、分数分布；不传类型默认学生评教，`evaluationType=全部` 统计全部类型 |
 | GET | `/api/evaluations/summary/export` | `evaluation:read` | 评教分析 CSV：按课程/学期/教师三个维度输出，筛选参数与 summary 一致 |
 | GET | `/api/evaluations/{id}` | `evaluation:read` | 评价详情 |
-| GET | `/api/evaluations/export` | `evaluation:read` | 评价明细 CSV |
+| GET | `/api/evaluations/export` | `evaluation:read` | 评价明细 CSV；筛选参数与列表一致（含 `courseId/teacherId`） |
 
 **评教分析口径（Sprint 2 v1.3）**：
 
 - 数据范围：TEACHER 仅本人，DIRECTOR 仅本教研室，SUPERVISOR/ADMIN 全校；
 - 课程汇总按 `course + semester + teacher` 聚合；学期趋势按 `semester` 聚合；教师汇总按 `teacher` 聚合；
 - 三种聚合均直接基于原始 `evaluation.score` 计算，避免“先四舍五入再加权”的误差；
-- 趋势与教师汇总均返回 `avgScore`、`evaluationCount`；教师汇总额外返回 `courseCount`；
+- 趋势与教师汇总均返回 `avgScore`、`evaluationCount`；教师汇总额外返回 `courseCount`；教师汇总同时以 `byTeacher` 别名返回，兼容旧前端；
 - 分析导出与 summary 使用同一筛选条件，UTF-8 BOM，中文表头。
 
 ## 7. 督导与听评课（US-04）

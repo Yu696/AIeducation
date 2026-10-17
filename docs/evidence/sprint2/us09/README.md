@@ -37,7 +37,7 @@ GET /api/evaluations/summary/export?semester=&courseId=&teacherId=&evaluationTyp
 
 ## 4. 自动化测试
 
-新增 5 个用例：
+新增 6 个用例：
 
 | 用例 | 内容 |
 | --- | --- |
@@ -46,11 +46,12 @@ GET /api/evaluations/summary/export?semester=&courseId=&teacherId=&evaluationTyp
 | TC-US09-03 | 新增历史学期评价后趋势出现两个学期 |
 | TC-US09-04 | 分析导出含课程/学期/教师三个维度 |
 | TC-US09-05 | 教师评教分析只包含本人数据 |
+| TC-US09-06 | 评价明细支持课程/教师下钻筛选 |
 
 全量结果：
 
 ```text
-Tests run: 107, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 108, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -79,7 +80,7 @@ BUILD SUCCESS
 ## 6. AI 互动摘要（供表5整理）
 
 - 2026-10-17，AI 编码辅助（Claude Code）：根据 US-09 验收标准扩展评教 summary、趋势、教师汇总与分析导出，并修复前端 summary 解析和明细类型筛选参数；
-- 追加 5 个回归用例，全量 107 个用例通过；
+- 追加 6 个回归用例，全量 108 个用例通过；
 - 真实 MySQL 独立实例验证 11 项全部通过。
 
 ## 7. 待补

@@ -53,6 +53,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
               <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
               <if test="scoreMin != null"> AND e.score &gt;= #{scoreMin} </if>
               <if test="scoreMax != null"> AND e.score &lt;= #{scoreMax} </if>
+              <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+              <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
               <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
               <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
             </where>
@@ -66,6 +68,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
                                                @Param("semester") String semester,
                                                @Param("scoreMin") java.math.BigDecimal scoreMin,
                                                @Param("scoreMax") java.math.BigDecimal scoreMax,
+                                               @Param("courseId") Long courseId,
+                                               @Param("filterTeacherId") Long filterTeacherId,
                                                @Param("teacherId") Long teacherId,
                                                @Param("deptCode") String deptCode);
 
@@ -82,6 +86,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
               <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
               <if test="scoreMin != null"> AND e.score &gt;= #{scoreMin} </if>
               <if test="scoreMax != null"> AND e.score &lt;= #{scoreMax} </if>
+              <if test="courseId != null"> AND o.course_id = #{courseId} </if>
+              <if test="filterTeacherId != null"> AND o.teacher_id = #{filterTeacherId} </if>
               <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
               <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
             </where>
@@ -94,6 +100,8 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
                                               @Param("semester") String semester,
                                               @Param("scoreMin") java.math.BigDecimal scoreMin,
                                               @Param("scoreMax") java.math.BigDecimal scoreMax,
+                                              @Param("courseId") Long courseId,
+                                              @Param("filterTeacherId") Long filterTeacherId,
                                               @Param("teacherId") Long teacherId,
                                               @Param("deptCode") String deptCode);
 

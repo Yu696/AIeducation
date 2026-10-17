@@ -42,23 +42,24 @@ public class EvaluationService {
     /** 评价列表分页（教师只看本人所授课程，主任只看本院系） */
     public PageResult<EvaluationView> page(long page, long size, String keyword, Long offeringId,
                                            String evaluationType, String semester, BigDecimal scoreMin,
-                                           BigDecimal scoreMax, CurrentUser user) {
+                                           BigDecimal scoreMax, Long courseId, Long teacherId,
+                                           CurrentUser user) {
         Page<EvaluationView> p = new Page<>(page, size);
         Long effTeacher = dataScopeService.teacherScope(user);
         String effDept = dataScopeService.effectiveDept(null, user);
         IPage<EvaluationView> result = evaluationMapper.selectEvaluationPage(p, keyword, offeringId,
-                evaluationType, semester, scoreMin, scoreMax, effTeacher, effDept);
+                evaluationType, semester, scoreMin, scoreMax, courseId, teacherId, effTeacher, effDept);
         return new PageResult<>(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords());
     }
 
     /** 导出用评价列表 */
     public List<EvaluationView> listForExport(String keyword, Long offeringId, String evaluationType,
                                               String semester, BigDecimal scoreMin, BigDecimal scoreMax,
-                                              CurrentUser user) {
+                                              Long courseId, Long teacherId, CurrentUser user) {
         Long effTeacher = dataScopeService.teacherScope(user);
         String effDept = dataScopeService.effectiveDept(null, user);
         return evaluationMapper.selectEvaluationList(keyword, offeringId, evaluationType, semester,
-                scoreMin, scoreMax, effTeacher, effDept);
+                scoreMin, scoreMax, courseId, teacherId, effTeacher, effDept);
     }
 
     /** 评价详情 */
@@ -73,6 +74,11 @@ public class EvaluationService {
     /** 兼容 Sprint 1 调用：不传筛选条件时等价于默认“学生评教”汇总 */
     public Map<String, Object> summary(String semester, CurrentUser user) {
         return summary(semester, null, null, null, user);
+    }
+
+    /** 兼容工作台调用：courseId/teacherId 为空，默认学生评教 */
+    public Map<String, Object> summary(String semester, Long courseId, Long teacherId, CurrentUser user) {
+        return summary(semester, courseId, teacherId, null, user);
     }
 
     /**
@@ -137,6 +143,8 @@ public class EvaluationService {
         data.put("distribution", normalizeDistribution(distribution));
         data.put("trend", trend);
         data.put("teacherSummary", teacherSummary);
+        // 兼容远程 US-09 前端使用的字段名
+        data.put("byTeacher", teacherSummary);
         data.put("evaluationType", typeFilter == null ? "全部" : typeFilter);
         data.put("filters", filters);
         data.put("caliber", "评教分析口径：统计类型=" + typeLabel + "；"
