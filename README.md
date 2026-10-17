@@ -12,7 +12,7 @@
 | Sprint 切片 | 实验一用户故事地图第 1 个发布切片 |
 | 项目周期 | 6 周（本实验为教学模拟 Sprint，约 180 分钟） |
 
-> **Sprint 2 增量（实验三）**：US-10 听评课状态机（刘鹏杰）、US-08 备课查看增强（杨继鑫）、T-01 CI/回归基线（杨继鑫）。新增 8 个回归用例后，当前后端共 **89 个自动化用例全绿**，并新增 GitHub Actions 与本地等价 CI 脚本。
+> **Sprint 2 增量（实验三）**：US-07 资源挂接闭环（刘润七）、US-08 备课查看增强（杨继鑫）、US-10 听评课状态机（刘鹏杰）、T-01 CI/回归基线（杨继鑫）。US-07 新增 13 个、US-08/US-10 新增 8 个回归用例，合并后当前后端共 **102 个自动化用例全绿**，并新增 GitHub Actions 与本地等价 CI 脚本。
 > 详细分工见 `16组_Sprint2分工规划.md`，执行记录见 `docs/evidence/sprint2/ci/local-ci-run.md`。
 
 ---
@@ -71,7 +71,7 @@ aijiaoxue/
 │       │   └── util/           CSV 导入导出工具
 │       ├── main/resources/application.yml     MySQL 连接与 MyBatis-Plus 配置
 │       └── test/
-│           ├── java/com/aijiaoxue/            7 个测试类、89 个用例（Sprint 1 基线 81 + Sprint 2 新增 8）
+│           ├── java/com/aijiaoxue/            7 个测试类、102 个用例（Sprint 1 基线 81 + Sprint 2 新增 21）
 │           └── resources/                     H2 测试库脚本与配置
 ├── frontend/                   前端 SPA（原生 HTML/CSS/JS，hash 路由）
 │   ├── index.html              单页入口：登录 → 工作台 → 各功能页
@@ -178,7 +178,7 @@ D:\java\idea\idea_java_projects\aijiaoxue\frontend\index.html
 ### 步骤 4：跑测试
 
 ```powershell
-# 4.1 自动化集成测试（H2 内存库，89 个用例，不依赖 MySQL）
+# 4.1 自动化集成测试（H2 内存库，102 个用例，不依赖 MySQL）
 cd D:\java\idea\idea_java_projects\aijiaoxue\backend
 mvn -o test
 
@@ -187,7 +187,7 @@ cd D:\java\idea\idea_java_projects\aijiaoxue
 python docs\smoke_test.py
 ```
 
-预期结果：`Tests run: 89, Failures: 0, Errors: 0` → `BUILD SUCCESS`；冒烟测试 `通过 56 项，失败 0 项`。
+预期结果：`Tests run: 102, Failures: 0, Errors: 0` → `BUILD SUCCESS`；冒烟测试 `通过 56 项，失败 0 项`。
 测试用例清单与执行记录见 `docs/测试报告.md`。
 
 ### 步骤 5：演示账号（密码统一 `123456`）
@@ -251,7 +251,7 @@ main（可运行基线，任何人不得直推）
 | # | 标准 | 本轮达成情况 |
 | --- | --- | --- |
 | ① | **功能可运行**：四类角色可登录并完成核心查询，无阻塞性错误 | ☑ **已达成**：后端接 MySQL 启动成功，56 项接口冒烟全部通过 |
-| ② | **有基本测试**：关键路径（查询、筛选、权限拦截）单元测试或集成测试通过 | ☑ **已达成**：89 个自动化用例全绿（Sprint 1 基线 81 + Sprint 2 新增 8），含权限拦截、覆盖率计算、CSV 导出 |
+| ② | **有基本测试**：关键路径（查询、筛选、权限拦截）单元测试或集成测试通过 | ☑ **已达成**：102 个自动化用例全绿（Sprint 1 基线 81 + Sprint 2 新增 21），含权限拦截、覆盖率计算、CSV 导出 |
 | ③ | **有代码注释**：关键函数、Service、接口与数据模型有清晰注释 | ☑ **已达成**：Java 类/方法、16 表 127 字段、前端模块均含中文注释 |
 | ④ | **代码已审查**：AI 生成代码经人工审查 diff 后合入，测试通过方可标记完成 | ☑ **已达成**：审查中发现并修复 7 个真实缺陷（见 `docs/测试报告.md` 5.2） |
 
@@ -278,7 +278,7 @@ main（可运行基线，任何人不得直推）
 | 文档 | 说明 |
 | --- | --- |
 | `docs/API契约.md` | 接口冻结基线（v1.0，计划会开场 10 分钟冻结），前后端一律以此为准 |
-| `docs/测试报告.md` | DoD 第②条：测试范围、环境、89 用例执行结果、缺陷清单、遗留风险 |
+| `docs/测试报告.md` | DoD 第②条：测试范围、环境、102 用例执行结果、缺陷清单、遗留风险 |
 | `docs/smoke_test.py` | 端到端冒烟脚本（56 项，校验 6 个账号、核心接口、越权拦截、前端资源） |
 | `database/数据字典.md` | 16 张表逐字段明细 + 关键统计口径（覆盖率/学生人次/评教均分） |
 | `database/README.md` | 数据库初始化、校验语句与实测结果、数据重置 |
