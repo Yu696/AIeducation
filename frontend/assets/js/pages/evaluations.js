@@ -21,8 +21,15 @@
   var UI = AJ.UI;
   var util = AJ.util;
 
-  /** 评价类型候选值 */
-  var TYPES = ['学生评教', '同行评教', '督导评教', '教师自评'];
+  /** 评价类型候选值（与后端 evaluationTypes 保持一致） */
+  var TYPES = ['学生评教', '督导评教', '同行评议'];
+  /** 分析筛选类型：全部类型用 value=全部 传给后端 */
+  var ANALYSIS_TYPES = [
+    { value: '学生评教', label: '学生评教' },
+    { value: '督导评教', label: '督导评教' },
+    { value: '同行评议', label: '同行评议' },
+    { value: '全部', label: '全部类型' }
+  ];
 
   var mounted = [];
   /**
@@ -35,7 +42,41 @@
   function asArray(res) {
     if (!res) { return []; }
     if (Object.prototype.toString.call(res) === '[object Array]') { return res; }
-    return res.records || res.list || res.rows || [];
+    return res.summary || res.records || res.list || res.rows || [];
+  }
+
+  /** 从对象中安全取数组字段 */
+  function pickArray(obj, key) {
+    if (!obj || Object.prototype.toString.call(obj) === '[object Array]') { return []; }
+    var v = obj[key];
+    return Object.prototype.toString.call(v) === '[object Array]' ? v : [];
+  }
+
+  /** 课程下拉（分析筛选） */
+  function courseLoader(keyword) {
+    return Api.get('/courses', { keyword: keyword || '', page: 1, size: 200 })
+      .then(function (res) {
+        return asArray(res).map(function (c) {
+          var code = util.pick(c, ['courseCode'], '');
+          var name = util.pick(c, ['courseName'], '');
+          return {
+            value: c.id,
+            label: (code ? code + ' ' : '') + (name || ('课程 ID: ' + c.id))
+          };
+        });
+      });
+  }
+
+  /** 教师下拉（分析筛选；教师角色隐藏） */
+  function teacherLoader(keyword) {
+    return Api.get('/teachers', { keyword: keyword || '', page: 1, size: 200 })
+      .then(function (res) {
+        return asArray(res).map(function (t) {
+          var name = util.pick(t, ['name', 'realName'], '未命名');
+          var dept = util.pick(t, ['departmentName', 'departmentCode'], '');
+          return { value: t.id, label: name + (dept ? '（' + dept + '）' : '') };
+        });
+      });
   }
 
   /** 取评价分数（兼容 score / totalScore / avgScore） */
@@ -75,7 +116,10 @@
         courseName: util.pick(r, ['courseName', 'name', 'courseCode'], '未知课程'),
         courseCode: util.pick(r, ['courseCode'], ''),
         avgScore: util.toNumber(util.pick(r, ['avgScore', 'averageScore', 'score', 'meanScore'], 0)),
-        count: util.toNumber(util.pick(r, ['count', 'studentCount', 'participantCount', 'total', 'num'], 0)),
+        count: util.toNumber(util.pick(r, ['count', 'studentCount', 'participantCount',
+          'evaluationCount', 'total', 'num'], 0)),
+        maxScore: util.pick(r, ['maxScore'], null),
+        minScore: util.pick(r, ['minScore'], null),
         semester: util.pick(r, ['semester'], ''),
         teacherName: util.pick(r, ['teacherName'], '')
       };
@@ -162,7 +206,7 @@
     var exportBtn = document.createElement('button');
     exportBtn.type = 'button';
     exportBtn.className = 'btn';
-    exportBtn.textContent = '导出 CSV';
+    exportBtn.textContent = '导出明细 CSV';
     exportBtn.addEventListener('click', function () {
       exportBtn.disabled = true;
       exportBtn.textContent = '导出中…';
@@ -171,15 +215,66 @@
           function (err) { UI.toast((err && err.message) || '导出失败', 'error'); })
         .then(function () {
           exportBtn.disabled = false;
-          exportBtn.textContent = '导出 CSV';
+          exportBtn.textContent = '导出明细 CSV';
         });
     });
     toolbar.appendChild(exportBtn);
+
+    var analysisExportBtn = document.createElement('button');
+    analysisExportBtn.type = 'button';
+    analysisExportBtn.className = 'btn btn-primary';
+    analysisExportBtn.textContent = '导出分析 CSV';
+    analysisExportBtn.addEventListener('click', function () {
+      analysisExportBtn.disabled = true;
+      analysisExportBtn.textContent = '导出中…';
+      Api.exportCsv('/evaluations/summary/export', buildAnalysisQuery(), '评教分析.csv')
+        .then(function (name) { UI.toast('已导出：' + name, 'success'); },
+          function (err) { UI.toast((err && err.message) || '导出失败', 'error'); })
+        .then(function () {
+          analysisExportBtn.disabled = false;
+          analysisExportBtn.textContent = '导出分析 CSV';
+        });
+    });
+    toolbar.appendChild(analysisExportBtn);
     head.appendChild(toolbar);
     container.appendChild(head);
 
+    // —— 分析筛选：学期 / 类型 / 课程 / 教师 ——
+    var analysisBar = document.createElement('div');
+    container.appendChild(analysisBar);
+    var analysisFilters = UI.filterBar([
+      { name: 'semester', label: '学期', placeholder: '如 2025-2026-1' },
+      {
+        name: 'evaluationType', label: '评价类型', type: 'select',
+        options: ANALYSIS_TYPES, placeholder: '学生评教（默认）'
+      }
+    ], {
+      onSearch: function () { reloadAnalysis(); },
+      onReset: function () { resetAnalysis(); }
+    });
+    analysisBar.appendChild(analysisFilters.el);
+
+    var courseFilter = UI.remoteSelect({
+      name: 'courseId', label: '课程', loader: courseLoader, placeholder: '全部课程'
+    });
+    var teacherFilter = isTeacher ? null : UI.remoteSelect({
+      name: 'teacherId', label: '授课教师', loader: teacherLoader, placeholder: '全部教师'
+    });
+    [courseFilter, teacherFilter].forEach(function (sel) {
+      if (!sel) { return; }
+      var input = sel.querySelector('input');
+      if (input) { input.style.display = 'none'; }
+      var label = sel.querySelector('.form-label');
+      if (label) {
+        label.style.fontSize = '12px';
+        label.style.color = '#6b7280';
+      }
+      sel.querySelector('select').addEventListener('change', reloadAnalysis);
+      analysisFilters.el.insertBefore(sel, analysisFilters.el.querySelector('.filter-actions'));
+    });
+
     // —— 汇总区（统计卡片 + 图表）——
-    var summaryCard = UI.card({ title: '学生评教汇总' });
+    var summaryCard = UI.card({ title: '评教分析（按课程 / 学期 / 教师）' });
     summaryCard.body.innerHTML = UI.loadingBlock('正在加载评教汇总…');
     container.appendChild(summaryCard.el);
 
@@ -188,7 +283,7 @@
     container.appendChild(listCard.el);
 
     var filters = UI.filterBar([
-      { name: 'type', label: '评价类型', type: 'select', options: TYPES, placeholder: '全部类型' },
+      { name: 'evaluationType', label: '评价类型', type: 'select', options: TYPES, placeholder: '全部类型' },
       { name: 'semester', label: '学期', placeholder: '如 2026-春季学期' },
       { name: 'scoreMin', label: '最低分', type: 'number', placeholder: '0' },
       { name: 'scoreMax', label: '最高分', type: 'number', placeholder: '100' }
@@ -249,8 +344,34 @@
       }
     });
 
-    // 加载汇总
-    loadSummary(summaryCard, tbl);
+    /** 读取当前分析筛选条件 */
+    function buildAnalysisQuery() {
+      var q = analysisFilters.getValues() || {};
+      var out = {};
+      if (q.semester) { out.semester = q.semester; }
+      if (q.evaluationType) { out.evaluationType = q.evaluationType; }
+      var cid = courseFilter.querySelector('select').value;
+      if (cid) { out.courseId = cid; }
+      if (teacherFilter) {
+        var tid = teacherFilter.querySelector('select').value;
+        if (tid) { out.teacherId = tid; }
+      }
+      return out;
+    }
+
+    function reloadAnalysis() {
+      loadSummary(summaryCard, tbl, buildAnalysisQuery());
+    }
+
+    function resetAnalysis() {
+      analysisFilters.setValues({ semester: '', evaluationType: '' });
+      courseFilter.querySelector('select').value = '';
+      if (teacherFilter) { teacherFilter.querySelector('select').value = ''; }
+      reloadAnalysis();
+    }
+
+    // 加载汇总（默认学生评教）
+    loadSummary(summaryCard, tbl, {});
 
     tbl.reload();
   }
@@ -258,16 +379,16 @@
   /* ==================================================================
    * 3. 汇总区渲染
    * ================================================================ */
-  function loadSummary(card, tbl) {
+  function loadSummary(card, tbl, query) {
     var guard = currentGuard;
-    Api.get('/evaluations/summary')
+    Api.get('/evaluations/summary', query || {})
       .then(guard(function (data) {
         renderSummary(card, data, tbl);
       }), guard(function (err) {
         card.body.innerHTML = '';
         card.body.appendChild(UI.errorBox((err && err.message) || '评教汇总加载失败', function () {
           card.body.innerHTML = UI.loadingBlock('正在加载评教汇总…');
-          loadSummary(card, tbl);
+          loadSummary(card, tbl, query);
         }));
       }));
   }
@@ -280,22 +401,30 @@
 
     var summaries = parseSummary(data);
 
-    // 后端可能返回 {scoreDistribution:[...]} 这种带分布的对象形式
-    var distFromBackend = null;
-    var isArrayData = Object.prototype.toString.call(data) === '[object Array]';
-    if (!isArrayData && data && typeof data === 'object') {
-      distFromBackend = util.pick(data, ['scoreDistribution', 'scoreDist', 'distribution'], null);
-    }
+    // 后端返回对象形式：{summary, trend, teacherSummary, distribution, ...}
+    var isObj = data && typeof data === 'object' &&
+      Object.prototype.toString.call(data) !== '[object Array]';
+    var trend = isObj ? pickArray(data, 'trend') : [];
+    var teacherSummary = isObj ? pickArray(data, 'teacherSummary') : [];
+    var distFromBackend = isObj
+      ? util.pick(data, ['scoreDistribution', 'scoreDist', 'distribution'], null)
+      : null;
 
-    var totalCount = 0;
+    var computedTotal = 0;
     var weighted = 0;
     summaries.forEach(function (s) {
-      totalCount += s.count || 0;
+      computedTotal += s.count || 0;
       weighted += (s.count || 0) * (s.avgScore || 0);
     });
-    var overallAvg = totalCount > 0 ? (weighted / totalCount) : (
+    var computedAvg = computedTotal > 0 ? (weighted / computedTotal) : (
       summaries.length ? summaries.reduce(function (a, s) { return a + s.avgScore; }, 0) / summaries.length : 0
     );
+    var totalCount = isObj && util.pick(data, ['totalEvaluations'], null) !== null
+      ? util.toNumber(util.pick(data, ['totalEvaluations'], 0)) : computedTotal;
+    var overallAvg = isObj && util.pick(data, ['overallAvgScore'], null) !== null
+      ? util.toNumber(util.pick(data, ['overallAvgScore'], 0)) : computedAvg;
+    var courseCount = isObj
+      ? util.toNumber(util.pick(data, ['courseCount'], summaries.length)) : summaries.length;
 
     var best = null;
     summaries.forEach(function (s) {
@@ -304,7 +433,7 @@
 
     // —— 统计卡片 ——
     card.body.appendChild(UI.statGrid([
-      { label: '纳入汇总课程数', value: summaries.length, unit: '门', icon: '课', tone: '' },
+      { label: '纳入汇总课程数', value: courseCount, unit: '门', icon: '课', tone: '' },
       { label: '参评总人次', value: totalCount, unit: '人次', icon: '人', tone: 'success' },
       {
         label: '总体平均分', value: summaries.length ? overallAvg.toFixed(2) : '—', unit: '分', icon: '分',
@@ -318,9 +447,27 @@
 
     if (!summaries.length) {
       var empty = document.createElement('div');
-      empty.innerHTML = UI.emptyState('暂无学生评教汇总数据', '可先在上方明细中确认是否存在评价记录');
+      empty.innerHTML = UI.emptyState('暂无评教汇总数据', '可调整上方筛选条件，或先确认是否存在评价记录');
       card.body.appendChild(empty);
       return;
+    }
+
+    // —— 学期趋势 ——
+    if (trend.length) {
+      var trendCard = UI.card({ title: '按学期评教趋势' });
+      if (trend.length > 1) {
+        var trendChart = AJ.Charts.lineChart(trend.map(function (t) {
+          return {
+            label: util.pick(t, ['semester'], ''),
+            value: util.toNumber(util.pick(t, ['avgScore'], 0))
+          };
+        }), { height: 250, yMax: 100, yUnit: ' 分' });
+        mounted.push(trendChart);
+        trendCard.body.appendChild(trendChart.el);
+      } else {
+        trendCard.body.appendChild(UI.note('当前筛选条件下只有一个学期，暂无法形成趋势对比。'));
+      }
+      card.body.appendChild(trendCard.el);
     }
 
     // —— 图表区 ——
@@ -366,6 +513,41 @@
 
     card.body.appendChild(grid);
 
+    // —— 按教师汇总 ——
+    if (teacherSummary.length) {
+      var teacherCard = UI.card({ title: '按教师汇总' });
+      teacherCard.body.appendChild(UI.miniTable([
+        { title: '教师', key: 'teacherName' },
+        {
+          title: '课程数', align: 'right',
+          render: function (v, row) { return util.num(util.pick(row, ['courseCount'], 0)); }
+        },
+        {
+          title: '参评人次', align: 'right',
+          render: function (v, row) { return util.num(util.pick(row, ['evaluationCount'], 0)); }
+        },
+        {
+          title: '平均分', align: 'right', raw: true,
+          render: function (v, row) {
+            var s = util.toNumber(util.pick(row, ['avgScore'], 0));
+            var tone = s >= 90 ? 'green' : s >= 80 ? 'blue' : s >= 60 ? 'orange' : 'red';
+            return '<span class="badge badge-' + tone + '">' + util.escape(s.toFixed(1)) + '</span>';
+          }
+        }
+      ], teacherSummary, '暂无教师汇总数据'));
+
+      var teacherChart = AJ.Charts.hBarChart(teacherSummary.slice(0, 12).map(function (t) {
+        return {
+          label: util.pick(t, ['teacherName'], '未命名'),
+          value: util.toNumber(util.pick(t, ['avgScore'], 0))
+        };
+      }), { height: Math.max(150, Math.min(teacherSummary.length, 12) * 32 + 30),
+        max: 100, valueUnit: ' 分', labelWidth: 140 });
+      mounted.push(teacherChart);
+      teacherCard.body.appendChild(teacherChart.el);
+      card.body.appendChild(teacherCard.el);
+    }
+
     // —— 汇总明细表 ——
     var tableWrap = UI.card({ title: '按课程汇总明细' });
     tableWrap.body.appendChild(UI.miniTable([
@@ -381,6 +563,14 @@
         }
       },
       {
+        title: '最高分', key: 'maxScore', align: 'right',
+        render: function (v) { return v === null || v === undefined ? '—' : Number(v).toFixed(1); }
+      },
+      {
+        title: '最低分', key: 'minScore', align: 'right',
+        render: function (v) { return v === null || v === undefined ? '—' : Number(v).toFixed(1); }
+      },
+      {
         title: '参评人次', key: 'count', align: 'right',
         render: function (v) { return util.num(v); }
       }
@@ -391,7 +581,7 @@
   function safeQuery(tbl) {
     var q = tbl.getQuery ? tbl.getQuery() : {};
     var out = {};
-    ['type', 'semester', 'scoreMin', 'scoreMax'].forEach(function (k) {
+    ['evaluationType', 'semester', 'scoreMin', 'scoreMax'].forEach(function (k) {
       if (q[k]) { out[k] = q[k]; }
     });
     return out;

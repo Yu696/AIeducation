@@ -3,7 +3,8 @@
 > 本文件是 Sprint 1 的**接口冻结基线**。Sprint 2 在 v1.1 基础上增量补充：
 > ① US-07 教学资源挂接与维护闭环（不改变 Sprint 1 已冻结接口的入参、出参与权限码）；
 > ② US-08 备课查看统计字段；
-> ③ US-10 听评课状态机、督导候选教师接口与待督导清单状态字段。
+> ③ US-09 评教分析（趋势/教师汇总/分析导出）；
+> ④ US-10 听评课状态机、督导候选教师接口与待督导清单状态字段。
 > 前后端、AI 编码智能体一律以此为准，禁止无契约并行开发（见表7改进措施第2条）。
 
 ## 0. 通用约定
@@ -150,10 +151,19 @@
 
 | 方法 | 路径 | 权限码 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/evaluations` | `evaluation:read` | 分页；教师角色强制只看本人；筛选 `offeringId/type/semester/scoreMin/scoreMax/page/size` |
-| GET | `/api/evaluations/summary` | `evaluation:read` | 学生评教汇总：按课程聚合平均分、参评人次、分数分布 |
+| GET | `/api/evaluations` | `evaluation:read` | 分页；教师角色强制只看本人；筛选 `offeringId/evaluationType/semester/scoreMin/scoreMax/page/size` |
+| GET | `/api/evaluations/summary` | `evaluation:read` | **评教分析**：筛选 `semester/courseId/teacherId/evaluationType`；返回课程汇总、学期趋势、教师汇总、分数分布；不传类型默认学生评教，`evaluationType=全部` 统计全部类型 |
+| GET | `/api/evaluations/summary/export` | `evaluation:read` | 评教分析 CSV：按课程/学期/教师三个维度输出，筛选参数与 summary 一致 |
 | GET | `/api/evaluations/{id}` | `evaluation:read` | 评价详情 |
-| GET | `/api/evaluations/export` | `evaluation:read` | 导出 CSV |
+| GET | `/api/evaluations/export` | `evaluation:read` | 评价明细 CSV |
+
+**评教分析口径（Sprint 2 v1.3）**：
+
+- 数据范围：TEACHER 仅本人，DIRECTOR 仅本教研室，SUPERVISOR/ADMIN 全校；
+- 课程汇总按 `course + semester + teacher` 聚合；学期趋势按 `semester` 聚合；教师汇总按 `teacher` 聚合；
+- 三种聚合均直接基于原始 `evaluation.score` 计算，避免“先四舍五入再加权”的误差；
+- 趋势与教师汇总均返回 `avgScore`、`evaluationCount`；教师汇总额外返回 `courseCount`；
+- 分析导出与 summary 使用同一筛选条件，UTF-8 BOM，中文表头。
 
 ## 7. 督导与听评课（US-04）
 
@@ -223,3 +233,4 @@
 | v1.1 | Sprint 1 执行期 | ① 补齐听评课明细导出 `/api/supervisions/export` 与状态候选值接口；② 状态枚举统一为中文（`已完成` 等）并写明映射；③ 明确覆盖率院系归属取课程院系 | 杨继鑫（DRI） |
 | v1.2 | Sprint 2 计划会/执行期 | ① 听评课状态机与日期/评分校验；② 新增督导候选教师接口 `/api/supervisions/supervisors`；③ 待督导清单返回 `supervisionStatus`；④ 备课查看增加课程数、缺资源标记、平均资源数与资源类型统计 | 刘鹏杰（DRI）、杨继鑫 |
 | v2.0 | Sprint 2 执行期 | ① 新增 `GET /api/courses/{id}/resources`（权限 `course:read`）；② 明确 `GET /api/courses/{id}` 返回 `{course, offerings, resources}`；③ 明确挂接幂等、软解绑、重复解绑、404/400/403 语义与审计字段；④ 补资源 `fileUrl`/`className` 字段及前后端统一枚举；⑤ 明确 TEACHER 资源查看/修改/删除的数据范围与备课“解绑后不可见”口径 | 刘润七（US-07 负责人） |
+| v1.3 | Sprint 2 执行期 | ① `summary` 增加 `courseId/teacherId/evaluationType` 筛选；② 返回 `trend`、`teacherSummary`、`courseCount`；③ 新增 `/summary/export` 分析导出；④ 明确趋势/教师汇总直接按原始评价记录聚合 | 余润东（US-09 负责人）、刘鹏杰 |

@@ -462,6 +462,99 @@ class ResourceAndEvaluationIT extends BaseIntegrationTest {
         org.junit.jupiter.api.Assertions.assertTrue(csv.contains("评价类型"));
     }
 
+    // ---------------- Sprint 2 US-09：评教分析与统计导出 ----------------
+
+    @Test
+    @DisplayName("TC-US09-01 评教分析支持类型/课程/教师/学期筛选")
+    void evaluationAnalysisFilters() throws Exception {
+        String token = login("admin");
+
+        mockMvc.perform(get("/api/evaluations/summary").param("evaluationType", "全部")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(7));
+
+        mockMvc.perform(get("/api/evaluations/summary").param("evaluationType", "督导评教")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(1));
+
+        mockMvc.perform(get("/api/evaluations/summary").param("courseId", "1")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(2));
+
+        mockMvc.perform(get("/api/evaluations/summary").param("teacherId", "1")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(4));
+
+        mockMvc.perform(get("/api/evaluations/summary").param("semester", "2025-2026-1")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(5));
+    }
+
+    @Test
+    @DisplayName("TC-US09-02 教师汇总按参评人次加权，趋势与课程汇总同时返回")
+    void evaluationTrendAndTeacherSummary() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(get("/api/evaluations/summary").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                // 学生评教均在 2025-2026-1，当前只有一个学期
+                .andExpect(jsonPath("$.data.trend.length()").value(1))
+                .andExpect(jsonPath("$.data.trend[0].semester").value("2025-2026-1"))
+                // 教师 1：CS101 2 条 + CS102 2 条 = 4 人次，加权平均 (92.5+88+95+78.5)/4 = 88.5
+                .andExpect(jsonPath("$.data.teacherSummary[?(@.teacherId==1)].courseCount").value(2))
+                .andExpect(jsonPath("$.data.teacherSummary[?(@.teacherId==1)].evaluationCount").value(4))
+                .andExpect(jsonPath("$.data.teacherSummary[?(@.teacherId==1)].avgScore").value(88.5));
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("TC-US09-03 新增历史学期评价后趋势出现两个学期")
+    void evaluationTrendWithHistory() throws Exception {
+        jdbcTemplate.update("INSERT INTO evaluation (id, offering_id, evaluation_type, semester, score, "
+                + "evaluator, content, evaluated_at, created_at) VALUES (8, 1, '学生评教', "
+                + "'2024-2025-2', 80.0, '学生(匿名)', '历史学期样例', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+
+        String token = login("admin");
+        mockMvc.perform(get("/api/evaluations/summary").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(6))
+                .andExpect(jsonPath("$.data.trend.length()").value(2))
+                .andExpect(jsonPath("$.data.trend[0].semester").value("2024-2025-2"))
+                .andExpect(jsonPath("$.data.trend[0].avgScore").value(80.0))
+                .andExpect(jsonPath("$.data.trend[1].semester").value("2025-2026-1"));
+    }
+
+    @Test
+    @DisplayName("TC-US09-04 评教分析导出含课程/学期/教师三个维度")
+    void evaluationSummaryExport() throws Exception {
+        String token = login("admin");
+        byte[] bytes = mockMvc.perform(get("/api/evaluations/summary/export")
+                        .param("evaluationType", "全部")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String csv = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(csv.contains("分析维度"));
+        assertTrue(csv.contains("按课程"));
+        assertTrue(csv.contains("按学期"));
+        assertTrue(csv.contains("按教师"));
+    }
+
+    @Test
+    @DisplayName("TC-US09-05 教师评教分析只包含本人数据")
+    void evaluationTeacherScope() throws Exception {
+        String token = login("teacher1");
+        mockMvc.perform(get("/api/evaluations/summary").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalEvaluations").value(4))
+                .andExpect(jsonPath("$.data.summary[?(@.teacherId != 1)]").doesNotExist())
+                .andExpect(jsonPath("$.data.teacherSummary[?(@.teacherId != 1)]").doesNotExist());
+    }
+
     // ---------------- Sprint 2 US-08：备课查看增强 ----------------
 
     @Test

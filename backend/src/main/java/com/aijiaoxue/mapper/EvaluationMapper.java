@@ -2,7 +2,9 @@ package com.aijiaoxue.mapper;
 
 import com.aijiaoxue.entity.Evaluation;
 import com.aijiaoxue.entity.view.EvaluationSummaryRow;
+import com.aijiaoxue.entity.view.EvaluationTrendRow;
 import com.aijiaoxue.entity.view.EvaluationView;
+import com.aijiaoxue.entity.view.TeacherSummaryRow;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -100,12 +102,14 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
     EvaluationView selectEvaluationDetail(@Param("id") Long id);
 
     /**
-     * 学生评教汇总：按课程聚合平均分、参评人次、最高/最低分。
-     * 口径：仅统计 evaluation_type='学生评教' 的记录，平均分保留 1 位小数。
+     * 评教汇总：按课程 + 学期 + 教师聚合平均分、参评人次、最高/最低分。
+     * 口径：evaluationType 为空表示全部评价类型；平均分保留 1 位小数。
      *
-     * @param semester  学期过滤
-     * @param teacherId 教师 SELF 数据范围过滤
-     * @param deptCode  教研室主任 DEPARTMENT 数据范围过滤
+     * @param semester       学期过滤
+     * @param courseId       课程过滤
+     * @param teacherId      教师 SELF 数据范围过滤
+     * @param evaluationType 评价类型过滤；null/空表示全部类型
+     * @param deptCode       教研室主任 DEPARTMENT 数据范围过滤
      */
     @Select("""
             <script>
@@ -116,16 +120,20 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
             LEFT JOIN offering o ON o.id = e.offering_id
             LEFT JOIN course c ON c.id = o.course_id
             LEFT JOIN teacher t ON t.id = o.teacher_id
-            WHERE e.evaluation_type = '学生评教'
+            WHERE 1 = 1
+            <if test="evaluationType != null and evaluationType != ''"> AND e.evaluation_type = #{evaluationType} </if>
             <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+            <if test="courseId != null"> AND c.id = #{courseId} </if>
             <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
             <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
             GROUP BY c.id, c.course_code, c.course_name, o.teacher_id, t.name, e.semester
-            ORDER BY avg_score DESC
+            ORDER BY avg_score DESC, c.course_code ASC
             </script>
             """)
     List<EvaluationSummaryRow> selectEvaluationSummary(@Param("semester") String semester,
+                                                       @Param("courseId") Long courseId,
                                                        @Param("teacherId") Long teacherId,
+                                                       @Param("evaluationType") String evaluationType,
                                                        @Param("deptCode") String deptCode);
 
     /**
@@ -146,8 +154,11 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
                      COUNT(1) AS cnt
               FROM evaluation e
               LEFT JOIN offering o ON o.id = e.offering_id
-              WHERE e.evaluation_type = '学生评教'
+              LEFT JOIN course c ON c.id = o.course_id
+              WHERE 1 = 1
+              <if test="evaluationType != null and evaluationType != ''"> AND e.evaluation_type = #{evaluationType} </if>
               <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+              <if test="courseId != null"> AND c.id = #{courseId} </if>
               <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
               <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
               GROUP BY bucket
@@ -156,6 +167,64 @@ public interface EvaluationMapper extends BaseMapper<Evaluation> {
             </script>
             """)
     List<Map<String, Object>> selectScoreDistribution(@Param("semester") String semester,
+                                                      @Param("courseId") Long courseId,
                                                       @Param("teacherId") Long teacherId,
+                                                      @Param("evaluationType") String evaluationType,
                                                       @Param("deptCode") String deptCode);
+
+    /**
+     * 按学期聚合评教趋势：直接基于原始评价记录计算，避免“先四舍五入再加权”的误差。
+     */
+    @Select("""
+            <script>
+            SELECT e.semester AS semester,
+                   ROUND(AVG(e.score), 1) AS avg_score,
+                   COUNT(1) AS evaluation_count
+            FROM evaluation e
+            LEFT JOIN offering o ON o.id = e.offering_id
+            LEFT JOIN course c ON c.id = o.course_id
+            WHERE 1 = 1
+            <if test="evaluationType != null and evaluationType != ''"> AND e.evaluation_type = #{evaluationType} </if>
+            <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+            <if test="courseId != null"> AND c.id = #{courseId} </if>
+            <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
+            <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
+            GROUP BY e.semester
+            ORDER BY e.semester ASC
+            </script>
+            """)
+    List<EvaluationTrendRow> selectEvaluationTrend(@Param("semester") String semester,
+                                                   @Param("courseId") Long courseId,
+                                                   @Param("teacherId") Long teacherId,
+                                                   @Param("evaluationType") String evaluationType,
+                                                   @Param("deptCode") String deptCode);
+
+    /**
+     * 按教师聚合评教结果：课程数、参评人次与加权平均分。
+     */
+    @Select("""
+            <script>
+            SELECT o.teacher_id AS teacher_id, t.name AS teacher_name,
+                   COUNT(DISTINCT c.id) AS course_count,
+                   COUNT(1) AS evaluation_count,
+                   ROUND(AVG(e.score), 1) AS avg_score
+            FROM evaluation e
+            LEFT JOIN offering o ON o.id = e.offering_id
+            LEFT JOIN course c ON c.id = o.course_id
+            LEFT JOIN teacher t ON t.id = o.teacher_id
+            WHERE 1 = 1
+            <if test="evaluationType != null and evaluationType != ''"> AND e.evaluation_type = #{evaluationType} </if>
+            <if test="semester != null and semester != ''"> AND e.semester = #{semester} </if>
+            <if test="courseId != null"> AND c.id = #{courseId} </if>
+            <if test="teacherId != null"> AND o.teacher_id = #{teacherId} </if>
+            <if test="deptCode != null and deptCode != ''"> AND o.department_code = #{deptCode} </if>
+            GROUP BY o.teacher_id, t.name
+            ORDER BY avg_score DESC, o.teacher_id ASC
+            </script>
+            """)
+    List<TeacherSummaryRow> selectTeacherSummary(@Param("semester") String semester,
+                                                 @Param("courseId") Long courseId,
+                                                 @Param("teacherId") Long teacherId,
+                                                 @Param("evaluationType") String evaluationType,
+                                                 @Param("deptCode") String deptCode);
 }

@@ -3,7 +3,9 @@ package com.aijiaoxue.service;
 import com.aijiaoxue.common.BusinessException;
 import com.aijiaoxue.common.PageResult;
 import com.aijiaoxue.entity.view.EvaluationSummaryRow;
+import com.aijiaoxue.entity.view.EvaluationTrendRow;
 import com.aijiaoxue.entity.view.EvaluationView;
+import com.aijiaoxue.entity.view.TeacherSummaryRow;
 import com.aijiaoxue.mapper.EvaluationMapper;
 import com.aijiaoxue.security.CurrentUser;
 import com.aijiaoxue.security.DataScopeService;
@@ -12,10 +14,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 教学评价服务（史诗三）。
@@ -65,24 +70,49 @@ public class EvaluationService {
         return view;
     }
 
-    /**
-     * 学生评教汇总 + 分数分布。
-     *
-     * <p>口径：仅统计 evaluation_type='学生评教' 的记录；平均分保留 1 位小数（四舍五入）。
-     *
-     * @return summary 列表、distribution 分档、总体平均分
-     */
+    /** 兼容 Sprint 1 调用：不传筛选条件时等价于默认“学生评教”汇总 */
     public Map<String, Object> summary(String semester, CurrentUser user) {
-        Long effTeacher = dataScopeService.teacherScope(user);
+        return summary(semester, null, null, null, user);
+    }
+
+    /**
+     * 评教分析：按课程/学期/教师/评价类型筛选，返回课程汇总、学期趋势、教师汇总与分数分布。
+     *
+     * <p>兼容 Sprint 1 行为：不传 evaluationType 时默认只统计“学生评教”；
+     * 传 evaluationType=全部（或 ALL）表示统计全部评价类型。
+     * 教师角色由数据范围强制为本人，主任强制为本院系。
+     */
+    public Map<String, Object> summary(String semester, Long courseId, Long teacherId,
+                                       String evaluationType, CurrentUser user) {
+        Long effTeacher = dataScopeService.effectiveTeacher(teacherId, user);
         String effDept = dataScopeService.effectiveDept(null, user);
 
-        List<EvaluationSummaryRow> summary = evaluationMapper.selectEvaluationSummary(semester, effTeacher, effDept);
-        List<Map<String, Object>> distribution = evaluationMapper.selectScoreDistribution(semester, effTeacher, effDept);
+        String typeFilter;
+        if (evaluationType == null || evaluationType.isBlank()) {
+            typeFilter = "学生评教";
+        } else if ("全部".equals(evaluationType.trim()) || "ALL".equalsIgnoreCase(evaluationType.trim())) {
+            typeFilter = null;
+        } else {
+            typeFilter = evaluationType.trim();
+        }
+
+        List<EvaluationSummaryRow> summary = evaluationMapper.selectEvaluationSummary(
+                semester, courseId, effTeacher, typeFilter, effDept);
+        List<Map<String, Object>> distribution = evaluationMapper.selectScoreDistribution(
+                semester, courseId, effTeacher, typeFilter, effDept);
+        List<EvaluationTrendRow> trend = evaluationMapper.selectEvaluationTrend(
+                semester, courseId, effTeacher, typeFilter, effDept);
+        List<TeacherSummaryRow> teacherSummary = evaluationMapper.selectTeacherSummary(
+                semester, courseId, effTeacher, typeFilter, effDept);
 
         // 总体平均分按参评人次加权，避免小样本课程拉偏整体判断
         long totalCount = 0L;
         BigDecimal weighted = BigDecimal.ZERO;
+        Set<Long> courseIds = new HashSet<>();
         for (EvaluationSummaryRow row : summary) {
+            if (row.getCourseId() != null) {
+                courseIds.add(row.getCourseId());
+            }
             if (row.getEvaluationCount() == null || row.getAvgScore() == null) {
                 continue;
             }
@@ -90,16 +120,28 @@ public class EvaluationService {
             weighted = weighted.add(row.getAvgScore().multiply(BigDecimal.valueOf(row.getEvaluationCount())));
         }
         BigDecimal overallAvg = totalCount == 0 ? BigDecimal.ZERO
-                : weighted.divide(BigDecimal.valueOf(totalCount), 1, java.math.RoundingMode.HALF_UP);
+                : weighted.divide(BigDecimal.valueOf(totalCount), 1, RoundingMode.HALF_UP);
+
+        String typeLabel = typeFilter == null ? "全部评价类型" : typeFilter;
+        Map<String, Object> filters = new LinkedHashMap<>();
+        filters.put("semester", semester);
+        filters.put("courseId", courseId);
+        filters.put("teacherId", effTeacher);
+        filters.put("evaluationType", typeFilter == null ? "全部" : typeFilter);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("summary", summary);
         data.put("totalEvaluations", totalCount);
         data.put("overallAvgScore", overallAvg);
+        data.put("courseCount", courseIds.size());
         data.put("distribution", normalizeDistribution(distribution));
-        data.put("caliber", "学生评教汇总口径：仅统计 evaluation_type='学生评教' 的记录；"
-                + "课程平均分 = 该课程全部学生评教分数平均值（保留 1 位小数）；"
-                + "总体平均分按参评人次加权计算。");
+        data.put("trend", trend);
+        data.put("teacherSummary", teacherSummary);
+        data.put("evaluationType", typeFilter == null ? "全部" : typeFilter);
+        data.put("filters", filters);
+        data.put("caliber", "评教分析口径：统计类型=" + typeLabel + "；"
+                + "课程平均分 = 该课程/学期/教师维度的评价平均分（保留 1 位小数）；"
+                + "总体平均分按参评人次加权；学期趋势与教师汇总同样按参评人次加权。");
         return data;
     }
 
