@@ -102,23 +102,26 @@
 
 **分工原则**：DRI 对“是否发布”负最终责任，但不替代模块 owner 做代码审查；每条 Must 故事/任务包有唯一 owner；发布证据必须由人确认，AI 只准备证据；集成与回归任务写入每个任务包，不单独甩给测试。
 
-### 表4-2 Sprint 3 文件/模块级分工（预计改动）
+### 表4-2 Sprint 3 代码分工明细（文件/模块级）
 
-| 成员 | 主责 | 后端/数据 | 前端/文档 | 测试/证据 |
-| --- | --- | --- | --- | --- |
-| 杨继鑫 | US-11、T-02、T-05 | 复用 `OfferingController/Service` 或新增只读总览查询；不改表；`pom.xml` 不引入新运行时依赖 | `frontend/assets/js/pages/schedule.js`（或复用 offerings 页）、路由/菜单；README 构建前提核对 | `OfferingAndDataIT`/新增只读总览用例；108 测试日志；CI 日志 |
-| 余润东 | T-03、T-04 | 无强制后端改动；核对开课/评教字段口径 | `README.md`、`docs/发布说明.md`、`docs/用户手册.md`；主旅程脚本 | 主旅程截图/录屏；Release Notes 审定记录 |
-| 刘鹏杰 | T-03、T-06、T-07 | 无强制后端改动 | 检查清单与证据目录 | 56 项冒烟日志；权限/异常旅程证据；速率/燃尽/技术债数据 |
-| 刘润七 | 发布总负责、T-06 | 无强制后端改动 | 表 3/6/7/9、发布边界声明、DRI 寄语 | AI 记录、签字页、Release Tag、8 项交付物核对 |
+> **实现口径（已冻结）**：US-11 不新增后端接口、不改表。前端新增只读总览页，复用现有 `GET /api/offerings`（该接口已返回 `scheduleInfo`，并按角色强制数据范围）；后端只补一条契约回归测试。若实现中发现现有接口无法满足分组展示，必须先经 DRI 批准，才可评估新增 `GET /api/offerings/schedule-overview`，并同步更新契约与测试。
+
+| 成员 | 主责故事/任务 | 后端代码（预计改动） | 前端代码（预计改动） | 测试/证据 | 代码交付要点 |
+| --- | --- | --- | --- | --- | --- |
+| 杨继鑫 | US-11、T-02、T-05 | 不改 `OfferingController/Service/Mapper`；在 `backend/src/test/java/com/aijiaoxue/us/OfferingAndDataIT.java` 新增 `offeringScheduleOverview` 契约测试 | 新增 `frontend/assets/js/pages/schedule.js`；修改 `frontend/assets/js/router.js` 增加 `/schedule` 路由；修改 `frontend/index.html` 引入页面脚本（品牌文案由余润东提供） | 109+ 自动化用例；真实 MySQL 冒烟；CI/本地等价日志；`docs/技术债台账.md` 新增/更新 | 只读、不写库、不改表；筛选/空态/分组正确；`scheduleInfo` 为空时显示“未填写”；不新增运行时依赖 |
+| 余润东 | T-03、T-04 | 无强制后端改动；核对开课字段与 `scheduleInfo` 口径 | 新增 `docs/发布说明.md`、`docs/用户手册.md`；修改 `README.md`；提供 `frontend/index.html` 品牌文案（由杨继鑫落盘） | 主旅程截图/录屏；Release Notes 逐条对照真实功能 | Release Notes 不得写未实现功能；用户手册能指导他人登录并完成主旅程 |
+| 刘鹏杰 | T-03、T-06、T-07 | 无强制后端改动；只做回归与权限验证 | 修改 `docs/smoke_test.py`，新增排课总览 4 项检查；修改 `docs/测试报告.md` 修正数字与矛盾 | 56+4 项冒烟日志；108+ 全量回归日志；权限/异常旅程证据；速率/燃尽/技术债数据 | 冒烟检查只读，不调用新增/修改/删除接口；测试报告数字与日志一致 |
+| 刘润七 | 发布总负责、T-06 | 无强制后端改动；审查 diff 与权限/数据范围 | `16组_Sprint3分工规划.md`、两份 docx、发布边界声明、表 3/6/7/9、DRI 寄语 | `docs/evidence/sprint3/release-checklist.md`；AI 记录；签字页；Release Tag | 12 项检查逐项签字；未通过项不得计入发布范围；Tag 打在通过检查的提交上 |
 
 **代码开发纪律**：
 
 1. 只做增量，不重写 Sprint 1/2 已通过回归的模块；
-2. 新增/变更接口先写入 `docs/API契约.md`；
-3. 数据库原则上不改表结构；US-11 只读总览不新增表/字段；
-4. 测试随代码提交；US-11 至少新增只读总览与权限/数据范围用例；
-5. AI 生成代码必须人工审查 diff，重点看权限码、数据范围、空值和跨模块影响；
-6. 发布前以 JDK 17 重新执行全量构建与测试，不以本机 JDK 23 的结果替代发布基线。
+2. US-11 复用现有 `GET /api/offerings`，不新增后端接口、不改 `database/schema.sql` 与 `database/data.sql`；
+3. 前端只读页不得调用 `POST/PUT/DELETE`；不得在页面内做“冲突检测”或写库操作；
+4. 新增/变更契约说明先写入 `docs/API契约.md`；新测试随代码提交；
+5. AI 生成代码必须人工审查 diff，重点看权限码、数据范围、空值、`scheduleInfo` 缺失和跨模块影响；
+6. 发布前以 JDK 17 重新执行全量构建与测试，不以本机 JDK 23 的结果替代发布基线；
+7. `router.js` 与 `index.html` 是共享热点文件，只有杨继鑫可直接修改；其他人以补丁建议或 PR 评论方式提交。
 
 ---
 
