@@ -1,19 +1,22 @@
 # 爱教学 · 教学质量全链路数字化管理平台
 
-> **实验二 Sprint 1「查课程」** —— 《软件项目管理》16组
+> **实验四 Sprint 3「收官发布」** —— 《软件项目管理》16组
 > 敏捷闭环实践：Sprint 计划会 → 每日站会 → 人机协同开发 → Sprint 评审 → Sprint 回顾
 
 | 项 | 内容 |
 | --- | --- |
 | 团队 | 16组 |
-| 项目背景 | 爱教学（教学质量全链路数字化管理平台）· 进阶1「查课程」 |
-| 本轮 DRI | 杨继鑫（第2位轮值，兼任 PO 与 Scrum Master） |
-| 团队成员 | 余润东（产品与范围）、刘鹏杰（质量与风险）、刘润七（AI协调与记录） |
-| Sprint 切片 | 实验一用户故事地图第 1 个发布切片 |
+| 项目背景 | 爱教学（教学质量全链路数字化管理平台）· 背景 B |
+| 本轮 DRI | 刘润七（第4位轮值，兼任 PO、Scrum Master、发布总负责人） |
+| 团队成员 | 余润东（产品与范围）、杨继鑫（技术与架构）、刘鹏杰（质量与集成）、刘润七（DRI） |
+| Sprint 切片 | 实验一用户故事地图 Sprint 3 切片（收官） |
 | 项目周期 | 6 周（本实验为教学模拟 Sprint，约 180 分钟） |
 
 > **Sprint 2 增量（实验三）**：US-07 资源挂接闭环（刘润七）、US-08 备课查看增强（杨继鑫）、US-09 评教分析导出（余润东）、US-10 听评课状态机（刘鹏杰）、T-01 CI/回归基线（杨继鑫）。US-07 新增 13 个、US-08/US-10 新增 8 个、US-09 新增 6 个回归用例，合并后当前后端共 **108 个自动化用例全绿**，并新增 GitHub Actions 与本地等价 CI 脚本。
 > 详细分工见 `16组_Sprint2分工规划.md`，执行记录见 `docs/evidence/sprint2/ci/local-ci-run.md`。
+
+> **Sprint 3 增量（实验四，收官）**：US-11 排课统筹总览（只读，杨继鑫）+ T-02—T-07 发布工程收尾。本轮主动收敛为"1 条只读增量 + 发布任务包"，把三个 Sprint 增量集成为发布就绪产品；排课冲突检测、整改跟踪、统一导出中心、评教多教师趋势对比明确顺延。
+> 状态：US-11 前端页 `pages/schedule.js` **开发中**，文档与发布说明见 `docs/发布说明.md`；详细分工见 `16组_Sprint3分工规划.md`。
 
 ---
 
@@ -78,7 +81,7 @@ aijiaoxue/
 │   ├── README.md               前端结构与联调说明
 │   └── assets/
 │       ├── css/style.css
-│       └── js/                 api / ui / charts / router + pages/（11 个页面）
+│       └── js/                 api / ui / charts / router + pages/（12 个页面，含 Sprint 3 排课总览）
 ├── database/                   数据库脚本与数据字典
 │   ├── schema.sql              建库建表（16 张表，每字段带 COMMENT）
 │   ├── data.sql                样例数据（US-05 数据导入）
@@ -87,6 +90,8 @@ aijiaoxue/
 └── docs/                       契约与过程文档
     ├── API契约.md               接口冻结基线（第 1—8 节接口清单与权限码）
     ├── 测试报告.md              DoD 第②条：测试用例清单与执行记录
+    ├── 发布说明.md              Release Notes（Sprint 3）
+    ├── 用户手册.md              登录与主旅程操作指南（Sprint 3）
     └── smoke_test.py            端到端冒烟测试（56 项，针对真实 MySQL）
 ```
 
@@ -173,7 +178,7 @@ http://localhost:8080/index.html
 D:\java\idea\idea_java_projects\aijiaoxue\frontend\index.html
 ```
 
-前端路由（hash）：`#/login`、`#/dashboard`、`#/courses`、`#/offerings`、`#/teachers`、`#/resources`、`#/prep`、`#/evaluations`、`#/supervision`、`#/coverage`、`#/admin`。
+前端路由（hash）：`#/login`、`#/dashboard`、`#/courses`、`#/offerings`、`#/teachers`、`#/resources`、`#/prep`、`#/evaluations`、`#/supervision`、`#/coverage`、`#/schedule`（Sprint 3 排课总览）、`#/admin`。
 
 ### 步骤 4：跑测试
 
@@ -277,12 +282,14 @@ main（可运行基线，任何人不得直推）
 
 | 文档 | 说明 |
 | --- | --- |
-| `docs/API契约.md` | 接口冻结基线（v1.0，计划会开场 10 分钟冻结），前后端一律以此为准 |
+| `docs/API契约.md` | 接口冻结基线（v1.0—v2.0），前后端一律以此为准 |
 | `docs/测试报告.md` | DoD 第②条：测试范围、环境、108 用例执行结果、缺陷清单、遗留风险 |
+| `docs/发布说明.md` | Release Notes：发布范围、已知限制、顺延项、技术债（Sprint 3 新增） |
+| `docs/用户手册.md` | 登录、主旅程与各功能页操作指南（Sprint 3 新增） |
 | `docs/smoke_test.py` | 端到端冒烟脚本（56 项，校验 6 个账号、核心接口、越权拦截、前端资源） |
 | `database/数据字典.md` | 16 张表逐字段明细 + 关键统计口径（覆盖率/学生人次/评教均分） |
 | `database/README.md` | 数据库初始化、校验语句与实测结果、数据重置 |
-| `16组_Sprint1分工规划.docx` | 实验二交付物：表1—表8 过程记录与分工规划 |
+| `16组_Sprint3分工规划.md` | 实验四交付物：表1—表9 过程记录与分工规划 |
 
 ## 十一、样例数据声明
 
