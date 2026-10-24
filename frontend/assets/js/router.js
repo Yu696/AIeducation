@@ -38,6 +38,9 @@
       roles: ['ADMIN', 'DIRECTOR', 'COURSE_ADMIN', 'SUPERVISOR'], permission: 'course:read' },
     { path: '/offerings', key: 'offerings', title: '开课与授课管理', icon: '▦', group: '课程与教学',
       roles: ['ADMIN', 'DIRECTOR', 'COURSE_ADMIN', 'SUPERVISOR', 'TEACHER'], permission: 'offering:read' },
+    // US-11 只读总览：复用开课接口与 offering:read 权限，教师角色由后端收窄为本人教学班
+    { path: '/schedule', key: 'schedule', title: '排课统筹总览', icon: '▥', group: '课程与教学',
+      roles: ['ADMIN', 'DIRECTOR', 'COURSE_ADMIN', 'SUPERVISOR', 'TEACHER'], permission: 'offering:read' },
     { path: '/teachers', key: 'teachers', title: '教师信息管理', icon: '☺', group: '课程与教学',
       roles: ['ADMIN', 'DIRECTOR', 'COURSE_ADMIN'], permission: 'teacher:read' },
     { path: '/resources', key: 'resources', title: '教学资源管理', icon: '⌘', group: '课程与教学',

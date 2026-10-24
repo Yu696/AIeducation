@@ -108,6 +108,15 @@
 | POST | `/api/offerings/{id}/student-counts` | `offering:write` | 新增/更新人数记录 |
 | GET | `/api/offerings/export` | `offering:read` | 导出 CSV |
 
+**US-11 排课统筹总览（Sprint 3，只读，复用 `GET /api/offerings`）**
+
+- **不新增接口、不改表**。前端 `#/schedule` 调用 `GET /api/offerings?page=1&size=200`（可叠加 `keyword/semester/teacherId`），在客户端按「学期 → 教师 → 教学班」分组展示。
+- 权限码复用 `offering:read`；数据范围由后端强制收窄：`TEACHER` 仅本人教学班（含合上）、`DIRECTOR` 本教研室、`SUPERVISOR` 全校只读、`ADMIN` 全量。
+- 关键返回字段：`offeringCode`、`courseCode`、`courseName`、`semester`、`className`、`teacherName`、`departmentName`、`capacity`、`studentCount`、`offeringStatus`、`scheduleInfo`、`supervised`、`supervisionTimes`。
+- `scheduleInfo` 允许为空（`null` 或空串），前端统一显示“未填写”，不视为错误。
+- 页面为纯只读：禁止调用 `POST/PUT/DELETE`；**不做排课冲突检测**（TD-01，顺延至进阶 2）。
+- 若后续发现现有分页接口无法满足分组或性能要求，须经 DRI 批准后才可新增 `GET /api/offerings/schedule-overview`，并同步本契约、测试与权限码。
+
 ## 4. 教师信息管理（US-02，史诗一）
 
 | 方法 | 路径 | 权限码 | 说明 |
@@ -217,6 +226,7 @@
 | 工作台首页 | `#/dashboard` | 全部登录用户（按角色渲染不同卡片） |
 | 课程信息管理 | `#/courses` | ADMIN、DIRECTOR、COURSE_ADMIN、SUPERVISOR |
 | 开课与授课管理 | `#/offerings` | ADMIN、DIRECTOR、COURSE_ADMIN、SUPERVISOR、TEACHER（仅本人） |
+| 排课统筹总览（US-11，只读） | `#/schedule` | ADMIN、DIRECTOR、COURSE_ADMIN、SUPERVISOR、TEACHER（仅本人） |
 | 教师信息管理 | `#/teachers` | ADMIN、DIRECTOR、COURSE_ADMIN |
 | 教学资源管理 | `#/resources` | 全部（TEACHER 仅本人） |
 | 备课查看 | `#/prep` | TEACHER、DIRECTOR、ADMIN |
@@ -234,3 +244,4 @@
 | v1.2 | Sprint 2 计划会/执行期 | ① 听评课状态机与日期/评分校验；② 新增督导候选教师接口 `/api/supervisions/supervisors`；③ 待督导清单返回 `supervisionStatus`；④ 备课查看增加课程数、缺资源标记、平均资源数与资源类型统计 | 刘鹏杰（DRI）、杨继鑫 |
 | v2.0 | Sprint 2 执行期 | ① 新增 `GET /api/courses/{id}/resources`（权限 `course:read`）；② 明确 `GET /api/courses/{id}` 返回 `{course, offerings, resources}`；③ 明确挂接幂等、软解绑、重复解绑、404/400/403 语义与审计字段；④ 补资源 `fileUrl`/`className` 字段及前后端统一枚举；⑤ 明确 TEACHER 资源查看/修改/删除的数据范围与备课“解绑后不可见”口径 | 刘润七（US-07 负责人） |
 | v1.3 | Sprint 2 执行期 | ① `summary` 增加 `courseId/teacherId/evaluationType` 筛选；② 返回 `trend`、`teacherSummary`、`courseCount`；③ 新增 `/summary/export` 分析导出；④ 明确趋势/教师汇总直接按原始评价记录聚合 | 余润东（US-09 负责人）、刘鹏杰 |
+| v2.1 | Sprint 3 执行期 | ① 新增 US-11“排课统筹总览”复用 `GET /api/offerings` 的只读口径与字段说明；② 前端页面清单增加 `#/schedule`；③ 明确 `scheduleInfo` 空值展示“未填写”、不新增接口/不改表、不做冲突检测 | 杨继鑫（US-11 负责人） |
