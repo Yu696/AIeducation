@@ -61,7 +61,7 @@
 | `metrics/retrospective-data.md` | T-07 三轮速率、燃起图、技术债、改进闭环数据 | 已完成 |
 | `metrics/make_metrics_charts.py` | 度量图表生成脚本 | 已完成 |
 | `metrics/sprint-velocity.png`、`metrics/cumulative-burnup.png` | 三轮吞吐与累计燃起图 | 已完成 |
-| `release-checklist.md` | 12 项发布检查清单 | 待刘润七归档（本分支不代写） |
+| `release-checklist.md` | 12 项发布检查清单 | 已归档（刘润七确认） |
 
 ### 3.2 复现方式
 
@@ -98,20 +98,20 @@ python docs/evidence/sprint3/metrics/make_metrics_charts.py
 | 页面权限/异常旅程 | 8 / 8 通过 | `journey/ui-journey-evidence.md` |
 | T-07 项目度量 | 数据完成 | `metrics/retrospective-data.md` |
 
-## 4. 已知问题与待补证据
+## 4. 已知问题与证据状态
 
 | 编号 | 类型 | 说明 | 处置 |
 | --- | --- | --- | --- |
 | BUG-S3-01 | 一般缺陷 | 合上教师（`offering_teacher`）在开课列表中可见，但打开该教学班详情返回 403；`assertOfferingAccessible` 仅比较 `offering.teacher_id` | 本轮后端只读，登记到 `docs/测试报告.md` 遗留缺陷，不影响 US-11 总览列表；建议 Sprint 4 修复 |
-| E-S3-01 | 待补证据 | `/schedule` 页面截图/录屏依赖 `feature/sprint3-schedule-overview` 合入 | **已补齐**：`us11-schedule-page.png`（杨继鑫）+ `journey/screenshots/`（刘鹏杰 8 张） |
-| E-S3-02 | 待补证据 | “`scheduleInfo` 为空显示未填写”需页面构造空值场景 | **已补齐**：`journey/screenshots/empty-schedule-info.png`（路由拦截模拟空值，不改数据库） |
-| E-S3-03 | 待补证据 | 主旅程（主任登录→排课总览→筛选→返回）截图/录屏 | 余润东负责，待补 |
+| E-S3-01 | 已补齐 | `/schedule` 页面截图/录屏依赖 `feature/sprint3-schedule-overview` 合入 | `us11-schedule-page.png`（杨继鑫）+ `journey/screenshots/`（刘鹏杰 8 张） |
+| E-S3-02 | 已补齐 | “`scheduleInfo` 为空显示未填写”需页面构造空值场景 | `journey/screenshots/empty-schedule-info.png`（路由拦截模拟空值，不改数据库） |
+| E-S3-03 | 已补齐（截图） | 主旅程（主任登录→排课总览→筛选→返回）截图/录屏 | 已归档截图：`journey/screenshots/P-08-director-schedule.png`、`us11-schedule-page.png`；录屏见成果展演 |
 
 ## 5. 未覆盖 / 交接说明
 
 - 60 项真实 MySQL 冒烟由刘鹏杰执行与归档（US-11 合入后已复跑）；
-- 主旅程截图/录屏由余润东负责，权限/异常旅程页面证据由刘鹏杰完成；
-- `release-checklist.md` 与 `v1.0.0-sprint3` Tag 由刘润七负责；
+- 主旅程页面截图已归档（`P-08-director-schedule.png`、`us11-schedule-page.png`），录屏见成果展演；权限/异常旅程页面证据由刘鹏杰完成；
+- `release-checklist.md` 与 `v1.0.0-sprint3` Tag 已由刘润七归档与创建；
 - `ConfigController` 的 `/api/config/public` 与 `/health` 仍硬编码 `"Sprint 1"`，属 T-04 品牌口径，建议余润东确认后单独修改（不在本轮后端只读范围内）。
 
 ## 6. 环境备注（刘鹏杰采集环境）

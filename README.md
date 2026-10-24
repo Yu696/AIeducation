@@ -12,11 +12,11 @@
 | Sprint 切片 | 实验一用户故事地图 Sprint 3 切片（收官） |
 | 项目周期 | 6 周（本实验为教学模拟 Sprint，约 180 分钟） |
 
-> **Sprint 2 增量（实验三）**：US-07 资源挂接闭环（刘润七）、US-08 备课查看增强（杨继鑫）、US-09 评教分析导出（余润东）、US-10 听评课状态机（刘鹏杰）、T-01 CI/回归基线（杨继鑫）。US-07 新增 13 个、US-08/US-10 新增 8 个、US-09 新增 6 个回归用例，合并后当前后端共 **108 个自动化用例全绿**，并新增 GitHub Actions 与本地等价 CI 脚本。
+> **Sprint 2 增量（实验三）**：US-07 资源挂接闭环（刘润七）、US-08 备课查看增强（杨继鑫）、US-09 评教分析导出（余润东）、US-10 听评课状态机（刘鹏杰）、T-01 CI/回归基线（杨继鑫）。US-07 新增 13 个、US-08/US-10 新增 8 个、US-09 新增 6 个回归用例，Sprint 2 合并后为 108 个；Sprint 3 US-11 新增 1 个，当前后端共 **109 个自动化用例全绿**，并新增 GitHub Actions 与本地等价 CI 脚本。
 > 详细分工见 `16组_Sprint2分工规划.md`，执行记录见 `docs/evidence/sprint2/ci/local-ci-run.md`。
 
 > **Sprint 3 增量（实验四，收官）**：US-11 排课统筹总览（只读，杨继鑫）+ T-02—T-07 发布工程收尾。本轮主动收敛为"1 条只读增量 + 发布任务包"，把三个 Sprint 增量集成为发布就绪产品；排课冲突检测、整改跟踪、统一导出中心、评教多教师趋势对比明确顺延。
-> 状态：US-11 前端页 `pages/schedule.js` **开发中**，文档与发布说明见 `docs/发布说明.md`；详细分工见 `16组_Sprint3分工规划.md`。
+> 状态：US-11 前端页 `pages/schedule.js` **已合入 `main@40bd960`**，109/109 回归与 60/60 真实 MySQL 冒烟通过；文档与发布说明见 `docs/发布说明.md`；详细分工见 `16组_Sprint3分工规划.md`。
 
 ---
 
@@ -74,7 +74,7 @@ aijiaoxue/
 │       │   └── util/           CSV 导入导出工具
 │       ├── main/resources/application.yml     MySQL 连接与 MyBatis-Plus 配置
 │       └── test/
-│           ├── java/com/aijiaoxue/            7 个测试类、108 个用例（Sprint 1 基线 81 + Sprint 2 新增 27）
+│           ├── java/com/aijiaoxue/            7 个测试类、109 个用例（Sprint 1 基线 81 + Sprint 2 新增 27 + Sprint 3 新增 1）
 │           └── resources/                     H2 测试库脚本与配置
 ├── frontend/                   前端 SPA（原生 HTML/CSS/JS，hash 路由）
 │   ├── index.html              单页入口：登录 → 工作台 → 各功能页
@@ -92,7 +92,7 @@ aijiaoxue/
     ├── 测试报告.md              DoD 第②条：测试用例清单与执行记录
     ├── 发布说明.md              Release Notes（Sprint 3）
     ├── 用户手册.md              登录与主旅程操作指南（Sprint 3）
-    └── smoke_test.py            端到端冒烟测试（56 项，针对真实 MySQL）
+    └── smoke_test.py            端到端冒烟测试（60 项，针对真实 MySQL）
 ```
 
 ## 五、环境要求
@@ -183,7 +183,7 @@ D:\java\idea\idea_java_projects\aijiaoxue\frontend\index.html
 ### 步骤 4：跑测试
 
 ```powershell
-# 4.1 自动化集成测试（H2 内存库，108 个用例，不依赖 MySQL）
+# 4.1 自动化集成测试（H2 内存库，109 个用例，不依赖 MySQL）
 cd D:\java\idea\idea_java_projects\aijiaoxue\backend
 mvn -o test
 
@@ -192,7 +192,7 @@ cd D:\java\idea\idea_java_projects\aijiaoxue
 python docs\smoke_test.py
 ```
 
-预期结果：`Tests run: 108, Failures: 0, Errors: 0` → `BUILD SUCCESS`；冒烟测试 `通过 56 项，失败 0 项`。
+预期结果：`Tests run: 109, Failures: 0, Errors: 0` → `BUILD SUCCESS`；冒烟测试 `通过 60 项，失败 0 项`。
 测试用例清单与执行记录见 `docs/测试报告.md`。
 
 ### 步骤 5：演示账号（密码统一 `123456`）
@@ -255,8 +255,8 @@ main（可运行基线，任何人不得直推）
 
 | # | 标准 | 本轮达成情况 |
 | --- | --- | --- |
-| ① | **功能可运行**：四类角色可登录并完成核心查询，无阻塞性错误 | ☑ **已达成**：后端接 MySQL 启动成功，56 项接口冒烟全部通过 |
-| ② | **有基本测试**：关键路径（查询、筛选、权限拦截）单元测试或集成测试通过 | ☑ **已达成**：108 个自动化用例全绿（Sprint 1 基线 81 + Sprint 2 新增 27），含权限拦截、覆盖率计算、CSV 导出 |
+| ① | **功能可运行**：四类角色可登录并完成核心查询，无阻塞性错误 | ☑ **已达成**：后端接 MySQL 启动成功，60 项接口冒烟全部通过（Sprint 1 基线 56 + Sprint 3 新增 4） |
+| ② | **有基本测试**：关键路径（查询、筛选、权限拦截）单元测试或集成测试通过 | ☑ **已达成**：109 个自动化用例全绿（Sprint 1 基线 81 + Sprint 2 新增 27 + Sprint 3 新增 1），含权限拦截、覆盖率计算、CSV 导出 |
 | ③ | **有代码注释**：关键函数、Service、接口与数据模型有清晰注释 | ☑ **已达成**：Java 类/方法、16 表 127 字段、前端模块均含中文注释 |
 | ④ | **代码已审查**：AI 生成代码经人工审查 diff 后合入，测试通过方可标记完成 | ☑ **已达成**：审查中发现并修复 7 个真实缺陷（见 `docs/测试报告.md` 5.2） |
 
@@ -283,10 +283,10 @@ main（可运行基线，任何人不得直推）
 | 文档 | 说明 |
 | --- | --- |
 | `docs/API契约.md` | 接口冻结基线（v1.0—v2.0），前后端一律以此为准 |
-| `docs/测试报告.md` | DoD 第②条：测试范围、环境、108 用例执行结果、缺陷清单、遗留风险 |
+| `docs/测试报告.md` | DoD 第②条：测试范围、环境、109 用例执行结果、缺陷清单、遗留风险 |
 | `docs/发布说明.md` | Release Notes：发布范围、已知限制、顺延项、技术债（Sprint 3 新增） |
 | `docs/用户手册.md` | 登录、主旅程与各功能页操作指南（Sprint 3 新增） |
-| `docs/smoke_test.py` | 端到端冒烟脚本（56 项，校验 6 个账号、核心接口、越权拦截、前端资源） |
+| `docs/smoke_test.py` | 端到端冒烟脚本（60 项，校验 6 个账号、核心接口、越权拦截、前端资源） |
 | `database/数据字典.md` | 16 张表逐字段明细 + 关键统计口径（覆盖率/学生人次/评教均分） |
 | `database/README.md` | 数据库初始化、校验语句与实测结果、数据重置 |
 | `16组_Sprint3分工规划.md` | 实验四交付物：表1—表9 过程记录与分工规划 |
