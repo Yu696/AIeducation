@@ -63,4 +63,13 @@ EXIT=0
 
 | 文件 | 说明 |
 | --- | --- |
-| `smoke-test.log` | 原始冒烟输出（含 60 项 PASS 与汇总） |
+| `smoke-test.log` | 原始冒烟输出（US-11 合入前，60 项 PASS） |
+| `smoke-test-after-us11.log` | **US-11 合入后复跑（60 项 PASS）** |
+
+## 7. US-11 合入后复跑
+
+- 代码基线：`main@1f129b6`
+- 结果：**60 / 60 通过**（56 项既有 + 4 项 SM-01~04），`EXIT=0`
+- 页面同步验证：教师 4 行、督导/管理员 30 行、主任 6 行；页面无写操作按钮
+- 原始日志：`smoke-test-after-us11.log`
+- 页面截图：`journey/screenshots/`（8 张，见 `journey/ui-journey-evidence.md`）

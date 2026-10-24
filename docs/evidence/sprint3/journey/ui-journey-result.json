@@ -1,0 +1,91 @@
+{
+  "base": "http://127.0.0.1:8081",
+  "browser": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  "executedAt": "2026/10/24 16:50:54",
+  "scenarios": [
+    {
+      "id": "P-03-teacher-schedule",
+      "title": "教师只看到本人教学班（含合上）",
+      "role": "teacher1",
+      "result": "通过",
+      "expected": "4 个教学班；无写操作按钮",
+      "observed": "4 行；统计 [{\"label\":\"教学班\",\"value\":\"4 个\"},{\"label\":\"课程\",\"value\":\"3 门\"},{\"label\":\"授课教师\",\"value\":\"2 人\"},{\"label\":\"待补排课信息\",\"value\":\"0 个\"}]；筛选=[\"关键词\",\"学期\"]；写按钮=0",
+      "screenshot": "screenshots/P-03-teacher-schedule.png"
+    },
+    {
+      "id": "P-06-supervisor-schedule",
+      "title": "督导全校只读",
+      "role": "supervisor",
+      "result": "通过",
+      "expected": "30 个教学班；无写操作按钮",
+      "observed": "30 行；统计 [{\"label\":\"教学班\",\"value\":\"30 个\"},{\"label\":\"课程\",\"value\":\"24 门\"},{\"label\":\"授课教师\",\"value\":\"12 人\"},{\"label\":\"待补排课信息\",\"value\":\"0 个\"}]；筛选=[\"关键词\",\"学期\",\"授课教师\"]；写按钮=0",
+      "screenshot": "screenshots/P-06-supervisor-schedule.png"
+    },
+    {
+      "id": "P-08-director-schedule",
+      "title": "主任仅本院系",
+      "role": "director",
+      "result": "通过",
+      "expected": "6 个教学班；无写操作按钮",
+      "observed": "6 行；统计 [{\"label\":\"教学班\",\"value\":\"6 个\"},{\"label\":\"课程\",\"value\":\"4 门\"},{\"label\":\"授课教师\",\"value\":\"3 人\"},{\"label\":\"待补排课信息\",\"value\":\"0 个\"}]；筛选=[\"关键词\",\"学期\",\"授课教师\"]；写按钮=0",
+      "screenshot": "screenshots/P-08-director-schedule.png"
+    },
+    {
+      "id": "admin-schedule",
+      "title": "管理员排课总览",
+      "role": "admin",
+      "result": "通过",
+      "expected": "30 个教学班；无写操作按钮",
+      "observed": "30 行；统计 [{\"label\":\"教学班\",\"value\":\"30 个\"},{\"label\":\"课程\",\"value\":\"24 门\"},{\"label\":\"授课教师\",\"value\":\"12 人\"},{\"label\":\"待补排课信息\",\"value\":\"0 个\"}]；筛选=[\"关键词\",\"学期\",\"授课教师\"]；写按钮=0",
+      "screenshot": "screenshots/admin-schedule.png"
+    },
+    {
+      "id": "U-01",
+      "title": "未登录访问 /schedule",
+      "role": "未登录",
+      "result": "通过",
+      "expected": "跳转登录页，不展示排课数据",
+      "observed": "hash=#/login，登录页可见",
+      "screenshot": "screenshots/unauth-redirect-login.png"
+    },
+    {
+      "id": "A-01",
+      "title": "学期无数据空态",
+      "role": "admin",
+      "result": "通过",
+      "expected": "显示空态文案，不白屏",
+      "observed": "显示“该筛选条件下暂无排课数据”",
+      "screenshot": "screenshots/empty-semester.png"
+    },
+    {
+      "id": "A-02",
+      "title": "scheduleInfo 为空显示“未填写”",
+      "role": "admin",
+      "result": "通过",
+      "expected": "空值单元格显示“未填写”，统计卡提示待补排课信息",
+      "observed": "“未填写”单元格=1；统计={\"label\":\"待补排课信息\",\"value\":\"1 个\"}",
+      "screenshot": "screenshots/empty-schedule-info.png"
+    },
+    {
+      "id": "A-03",
+      "title": "后端不可用友好提示",
+      "role": "admin",
+      "result": "通过",
+      "expected": "显示错误提示与“重试”，不白屏",
+      "observed": "错误框：无法连接后端服务，请确认服务已启动（/api）重试",
+      "screenshot": "screenshots/backend-unavailable.png"
+    }
+  ],
+  "consoleErrors": {
+    "P-03-teacher-schedule": [],
+    "P-06-supervisor-schedule": [],
+    "P-08-director-schedule": [],
+    "admin-schedule": [],
+    "unauth": [],
+    "empty-semester": [],
+    "empty-schedule-info": [],
+    "backend-down": [
+      "Failed to load resource: net::ERR_FAILED"
+    ]
+  }
+}

@@ -1,8 +1,8 @@
-# Sprint 3 全量回归证据（108 项）
+# Sprint 3 全量回归证据（108 → 109 项）
 
 > 执行人：刘鹏杰（质量与集成 / 发布门禁）
 > 执行日期：2026-10-24
-> 代码基线：`main@83aca2d`（后端代码本轮未改动）
+> 基线：US-11 合入前 `main@83aca2d`（108 项）；US-11 合入后 `main@1f129b6`（109 项）
 > 证据类型：可复现命令 + 原始 Maven 日志
 
 ## 1. 环境
@@ -56,5 +56,25 @@ Total time: 21.311 s
 
 | 文件 | 说明 |
 | --- | --- |
-| `jdk17-mvn-test.log` | JDK 17 全量回归原始日志（发布基线） |
-| `jdk21-supplemental-mvn-test.log` | JDK 21 + `-Dmaven.compiler.proc=full` 补充日志 |
+| `jdk17-mvn-test.log` | JDK 17 全量回归原始日志（US-11 合入前，108 项） |
+| `jdk21-supplemental-mvn-test.log` | JDK 21 + `-Dmaven.compiler.proc=full` 补充日志（US-11 合入前，108 项） |
+| `jdk17-mvn-test-after-us11.log` | **US-11 合入后 JDK 17 全量回归（109 项）** |
+
+## 6. US-11 合入后复跑（109 项）
+
+- 代码基线：`main@1f129b6`（US-11 与回归证据均已合入）
+- 执行命令：`cd backend && mvn -B -ntp test`（JDK 17.0.19）
+- 结果：`Tests run: 109, Failures: 0, Errors: 0, Skipped: 0` → `BUILD SUCCESS`
+- 增量：`OfferingAndDataIT` 由 15 项增至 **16 项**，新增 `offeringScheduleOverview` 契约测试
+- 原始日志：`jdk17-mvn-test-after-us11.log`
+
+| 测试类 | 用例数 | 失败 |
+| --- | --- | --- |
+| `AuthAndPermissionIT` | 7 | 0 |
+| `PermissionAccessControlIT` | 13 | 0 |
+| `DataScopeIT` | 6 | 0 |
+| `CourseQueryIT` | 14 | 0 |
+| `OfferingAndDataIT` | 16 | 0 |
+| `ResourceAndEvaluationIT` | 33 | 0 |
+| `CoverageAndDashboardIT` | 20 | 0 |
+| **合计** | **109** | **0** |
