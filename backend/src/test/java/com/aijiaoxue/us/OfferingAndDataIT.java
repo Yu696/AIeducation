@@ -63,6 +63,28 @@ class OfferingAndDataIT extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.total").value(4));    }
 
     @Test
+    @DisplayName("TC-US11-01 排课总览按学期取数并返回排课信息（US-11 只读契约）")
+    void offeringScheduleOverview() throws Exception {
+        String token = login("admin");
+        mockMvc.perform(get("/api/offerings?semester=2025-2026-1&size=200")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.total").value(5))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(200))
+                .andExpect(jsonPath("$.data.records.length()").value(5))
+                .andExpect(jsonPath("$.data.records[0].semester").value("2025-2026-1"))
+                .andExpect(jsonPath("$.data.records[4].semester").value("2025-2026-1"))
+                .andExpect(jsonPath("$.data.records[0].offeringCode").value("OFF-2025-1-CS101-01"))
+                .andExpect(jsonPath("$.data.records[0].courseName").isNotEmpty())
+                .andExpect(jsonPath("$.data.records[0].className").isNotEmpty())
+                .andExpect(jsonPath("$.data.records[0].teacherName").isNotEmpty())
+                .andExpect(jsonPath("$.data.records[0].offeringStatus").isNotEmpty())
+                .andExpect(jsonPath("$.data.records[0].scheduleInfo").value("周一 1-2 节 / 信息楼 A101"));
+    }
+
+    @Test
     @DisplayName("TC-US02-11 开课详情返回学生人次明细与任课教师")
     void offeringDetail() throws Exception {
         String token = login("admin");
