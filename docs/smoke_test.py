@@ -1,18 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Sprint 1 端到端冒烟测试：验证接 MySQL 启动后，6 个演示账号与核心接口全部可用。
+Sprint 1—3 端到端冒烟测试：验证接 MySQL 启动后，6 个演示账号与核心接口全部可用。
 
 用法：
     1) 先启动后端：backend> mvn spring-boot:run
     2) 再执行：python docs/smoke_test.py
+
+若 8080 被占用，可用环境变量指定后端地址：
+    Windows: set SMOKE_BASE_URL=http://127.0.0.1:8081 && python docs/smoke_test.py
+    Linux/macOS: SMOKE_BASE_URL=http://127.0.0.1:8081 python docs/smoke_test.py
 """
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = "http://127.0.0.1:8080"
+BASE = os.environ.get("SMOKE_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
 PASS = 0
 FAIL = 0
 RESULTS = []
@@ -67,7 +72,13 @@ def js(text, path, default=None):
     return node
 
 
-print("=" * 20 + " Sprint 1 冒烟测试 " + "=" * 20)
+def records_of(text):
+    """取分页响应 data.records，结构不符时返回空列表"""
+    records = js(text, "data.records", [])
+    return records if isinstance(records, list) else []
+
+
+print("=" * 20 + " Sprint 1—3 冒烟测试 " + "=" * 20)
 
 # ---------- 1. 健康检查与公共配置 ----------
 st, body = call("GET", "/api/health")
@@ -266,6 +277,52 @@ check("前端静态 JS 可访问", st == 200 and len(body) > 100, "status=%s" % 
 
 st, body = call("GET", "/assets/css/style.css")
 check("前端静态 CSS 可访问", st == 200 and len(body) > 100, "status=%s" % st)
+
+# ---------- 12. US-11 排课统筹总览（只读；SM-01 ~ SM-04） ----------
+# 复用 GET /api/offerings，不调用任何写接口。种子数据中张伟（teacher_id=1）
+# 主讲 CS101/CS102（2025-2026-1）与 CS101（2024-2025-2），并作为辅导教师
+# 参与 CS202（2025-2026-1），因此教师筛选应返回 4 条，其中 1 条为合上。
+TEACHER1_OFFERINGS = {
+    "CS101-2025-2026-1-01",
+    "CS102-2025-2026-1-01",
+    "CS202-2025-2026-1-01",
+    "CS101-2024-2025-2-01",
+}
+
+if "director" in tokens:
+    t = tokens["director"]
+
+    # SM-01：主任登录后读取排课总览，且至少有一条记录
+    st, body = call("GET", "/api/offerings?size=200", t)
+    records = records_of(body)
+    check("SM-01 主任读取排课总览（GET /api/offerings?size=200）",
+          st == 200 and len(records) > 0,
+          "status=%s records=%s" % (st, len(records)))
+
+    # SM-02：每条记录都返回 scheduleInfo；至少 1 条有值；空值应为空串而非报错
+    field_ok = bool(records) and all("scheduleInfo" in rec for rec in records)
+    value_ok = all(isinstance(rec.get("scheduleInfo"), str) for rec in records)
+    has_value = any((rec.get("scheduleInfo") or "").strip() for rec in records)
+    check("SM-02 开课记录含 scheduleInfo（至少 1 条有值，空值为空串）",
+          field_ok and value_ok and has_value,
+          "status=%s field=%s value=%s" % (st, field_ok, value_ok))
+
+    # SM-03：按学期筛选后，返回记录的 semester 必须全部匹配
+    semester = "2025-2026-1"
+    st, body = call("GET", "/api/offerings?semester=%s&size=200" % semester, t)
+    records = records_of(body)
+    semester_ok = bool(records) and all(rec.get("semester") == semester for rec in records)
+    check("SM-03 按学期筛选排课总览（%s）" % semester, st == 200 and semester_ok,
+          "status=%s records=%s" % (st, len(records)))
+
+# SM-04：按教师筛选（含合上）。使用管理员令牌，避免主任院系范围影响教师筛选。
+if "admin" in tokens:
+    st, body = call("GET", "/api/offerings?teacherId=1&size=200", tokens["admin"])
+    records = records_of(body)
+    codes = {rec.get("offeringCode") for rec in records}
+    check("SM-04 按教师筛选排课总览（含合上）",
+          st == 200 and codes == TEACHER1_OFFERINGS,
+          "status=%s codes=%s" % (st, sorted(codes)))
 
 # ---------- 汇总 ----------
 print("\n".join(RESULTS))
