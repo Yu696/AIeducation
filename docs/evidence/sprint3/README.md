@@ -3,7 +3,7 @@
 > 记录时间：2026-10-24
 > 责任人：杨继鑫（US-11、T-02 发布基线与 CI、T-05 技术债台账）、刘鹏杰（回归、冒烟、权限/异常旅程）
 > DRI 终检：刘润七
-> 代码基线：`main@40bd960`（US-11 已合入）；刘鹏杰回归证据的采集基线为 `main@83aca2d`（US-11 合入前）
+> 代码基线：`main@1f129b6`（US-11 与回归证据已合入）；US-11 合入前基线为 `main@83aca2d`
 
 ## 1. T-02 发布基线与 CI 证据（杨继鑫）
 
@@ -47,12 +47,20 @@
 | 目录 / 文件 | 内容 | 状态 |
 | --- | --- | --- |
 | `regression/summary.md` | 108 项全量回归结论、环境、分测试类明细（US-11 合入前基线） | 已完成 |
-| `regression/jdk17-mvn-test.log` | JDK 17 发布基线原始 Maven 日志 | 已完成 |
-| `regression/jdk21-supplemental-mvn-test.log` | JDK 21 补充运行日志（结果一致） | 已完成 |
+| `regression/jdk17-mvn-test.log` | JDK 17 发布基线原始 Maven 日志（108 项） | 已完成 |
+| `regression/jdk17-mvn-test-after-us11.log` | **US-11 合入后 JDK 17 全量回归（109 项）** | 已完成 |
+| `regression/jdk21-supplemental-mvn-test.log` | JDK 21 补充运行日志（US-11 合入前，108 项） | 已完成 |
 | `smoke/summary.md` | 56 + 4 = 60 项真实 MySQL 冒烟结论与 SM-01~04 明细 | 已完成 |
-| `smoke/smoke-test.log` | 冒烟脚本原始输出（60 PASS / 0 FAIL） | 已完成 |
+| `smoke/smoke-test.log` | 冒烟脚本原始输出（US-11 合入前，60 PASS / 0 FAIL） | 已完成 |
+| `smoke/smoke-test-after-us11.log` | **US-11 合入后真实 MySQL 冒烟复跑（60 PASS / 0 FAIL）** | 已完成 |
 | `journey/collect_journey.py` | 权限/异常旅程接口证据采集脚本（只读） | 已完成 |
 | `journey/permission-anomaly-journey.md` | 教师/主任/督导/未登录/越权与空态接口响应 | 已完成（接口级） |
+| `journey/capture_ui_journey.js` | 页面旅程截图脚本（Playwright + 系统 Chrome/Edge） | 已完成 |
+| `journey/ui-journey-evidence.md` | 8 个页面场景：教师/督导/主任/管理员、未登录、空态、未填写、后端不可用 | 已完成（页面级） |
+| `journey/screenshots/*.png` | 8 张页面截图 | 已完成 |
+| `metrics/retrospective-data.md` | T-07 三轮速率、燃起图、技术债、改进闭环数据 | 已完成 |
+| `metrics/make_metrics_charts.py` | 度量图表生成脚本 | 已完成 |
+| `metrics/sprint-velocity.png`、`metrics/cumulative-burnup.png` | 三轮吞吐与累计燃起图 | 已完成 |
 | `release-checklist.md` | 12 项发布检查清单 | 待刘润七归档（本分支不代写） |
 
 ### 3.2 复现方式
@@ -66,6 +74,13 @@ SMOKE_BASE_URL=http://127.0.0.1:8081 python docs/smoke_test.py
 
 # 权限/异常旅程接口证据（先启动后端）
 SMOKE_BASE_URL=http://127.0.0.1:8081 python docs/evidence/sprint3/journey/collect_journey.py
+
+# 页面旅程截图（需先 npm install playwright-core，并可用 CHROME_PATH 指定浏览器）
+NODE_PATH=<node_modules 路径> SMOKE_BASE_URL=http://127.0.0.1:8081 \
+  node docs/evidence/sprint3/journey/capture_ui_journey.js
+
+# T-07 图表
+python docs/evidence/sprint3/metrics/make_metrics_charts.py
 ```
 
 > Windows 下设置环境变量：`set SMOKE_BASE_URL=http://127.0.0.1:8081`。
@@ -74,25 +89,29 @@ SMOKE_BASE_URL=http://127.0.0.1:8081 python docs/evidence/sprint3/journey/collec
 
 | 门禁项 | 结果 | 证据 |
 | --- | --- | --- |
-| 108 项自动化回归（US-11 合入前） | 108 / 108 通过 | `regression/` |
-| 109 项自动化回归（US-11 合入后） | 109 / 109 通过 | `t02-jdk17-test.log` |
-| 56 项既有冒烟 | 56 / 56 通过 | `smoke/smoke-test.log` |
-| 新增排课总览冒烟 | 4 / 4 通过 | `smoke/smoke-test.log` |
+| 108 项自动化回归（US-11 合入前） | 108 / 108 通过 | `regression/jdk17-mvn-test.log` |
+| 109 项自动化回归（US-11 合入后） | 109 / 109 通过 | `regression/jdk17-mvn-test-after-us11.log`、`t02-jdk17-test.log` |
+| 56 项既有冒烟 | 56 / 56 通过 | `smoke/smoke-test-after-us11.log` |
+| 新增排课总览冒烟 | 4 / 4 通过 | `smoke/smoke-test-after-us11.log` |
 | 权限旅程（接口级） | 通过 | `journey/permission-anomaly-journey.md` |
 | 异常旅程（接口级） | 空学期、`scheduleInfo` 字段通过 | `journey/permission-anomaly-journey.md` |
+| 页面权限/异常旅程 | 8 / 8 通过 | `journey/ui-journey-evidence.md` |
+| T-07 项目度量 | 数据完成 | `metrics/retrospective-data.md` |
 
 ## 4. 已知问题与待补证据
 
 | 编号 | 类型 | 说明 | 处置 |
 | --- | --- | --- | --- |
 | BUG-S3-01 | 一般缺陷 | 合上教师（`offering_teacher`）在开课列表中可见，但打开该教学班详情返回 403；`assertOfferingAccessible` 仅比较 `offering.teacher_id` | 本轮后端只读，登记到 `docs/测试报告.md` 遗留缺陷，不影响 US-11 总览列表；建议 Sprint 4 修复 |
-| E-S3-01 | 待补证据 | `/schedule` 页面截图/录屏依赖 `feature/sprint3-schedule-overview` 合入 | **已补齐**：`us11-schedule-page.png`（合并后可见） |
-| E-S3-02 | 待补证据 | “`scheduleInfo` 为空显示未填写”需页面构造空值场景 | 待补截图（需构造空 `schedule_info` 或前端 mock） |
+| E-S3-01 | 待补证据 | `/schedule` 页面截图/录屏依赖 `feature/sprint3-schedule-overview` 合入 | **已补齐**：`us11-schedule-page.png`（杨继鑫）+ `journey/screenshots/`（刘鹏杰 8 张） |
+| E-S3-02 | 待补证据 | “`scheduleInfo` 为空显示未填写”需页面构造空值场景 | **已补齐**：`journey/screenshots/empty-schedule-info.png`（路由拦截模拟空值，不改数据库） |
+| E-S3-03 | 待补证据 | 主旅程（主任登录→排课总览→筛选→返回）截图/录屏 | 余润东负责，待补 |
 
 ## 5. 未覆盖 / 交接说明
 
-- 56 项真实 MySQL 冒烟由刘鹏杰执行与归档（杨继鑫本轮未重复执行）；
-- 主旅程截图/录屏由余润东负责；
+- 60 项真实 MySQL 冒烟由刘鹏杰执行与归档（US-11 合入后已复跑）；
+- 主旅程截图/录屏由余润东负责，权限/异常旅程页面证据由刘鹏杰完成；
+- `release-checklist.md` 与 `v1.0.0-sprint3` Tag 由刘润七负责；
 - `ConfigController` 的 `/api/config/public` 与 `/health` 仍硬编码 `"Sprint 1"`，属 T-04 品牌口径，建议余润东确认后单独修改（不在本轮后端只读范围内）。
 
 ## 6. 环境备注（刘鹏杰采集环境）

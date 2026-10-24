@@ -1,6 +1,6 @@
 # Sprint 3 权限 / 异常旅程接口证据
 
-> 执行时间：2026-10-24 16:06:43 
+> 执行时间：2026-10-24 16:47:36 
 > 执行人：刘鹏杰（T-03 权限/异常旅程）
 > 后端：http://127.0.0.1:8081；数据库：真实 MySQL `aijiaoxue`
 > 脚本：`docs/evidence/sprint3/journey/collect_journey.py`（只读采集）
@@ -39,7 +39,7 @@
 响应摘录：
 
 ```json
-{"code": 0, "message": "ok", "data": {"token": "***REDACTED***", "user": {"id": 3, "username": "teacher1", "realName": "张伟", "roleCode": "TEACHER", "roleName": "教师", "teacherId": 1, "teacherName": "张伟", "departmentCode": "CS", "departmentName": "计算机学院", "dataScope": "SELF", "lastLoginTime": "2026-10-24T16:06:44"}, "permissions": ["course:read", "dashboard:read", "dashb
+{"code": 0, "message": "ok", "data": {"token": "***REDACTED***", "user": {"id": 3, "username": "teacher1", "realName": "张伟", "roleCode": "TEACHER", "roleName": "教师", "teacherId": 1, "teacherName": "张伟", "departmentCode": "CS", "departmentName": "计算机学院", "dataScope": "SELF", "lastLoginTime": "2026-10-24T16:47:36"}, "permissions": ["course:read", "dashboard:read", "dashboard:teacher", "evaluation:re
 ```
 
 ### P-03 教师只看到本人教学班（含合上）
