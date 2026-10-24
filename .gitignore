@@ -21,6 +21,9 @@ out/
 .project
 .classpath
 
+# Claude Code 本地配置
+.claude/
+
 # 操作系统
 .DS_Store
 Thumbs.db
